@@ -164,13 +164,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val codeBlockRegex = Regex("```(?:html)?\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
+    private val codeBlockRegex = Regex("```(html-overlay|html)?\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
     private val openUrlRegex = Regex("OPEN_URL:\\s*(https?://\\S+)")
 
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
             if (customView != null) exitVideoFullscreen()
             else if (sheetOpen) closeSheet()
+            else if (overlayPanel?.isVisible == true) hideOverlay()
             else if (previewContainer.isVisible) hidePreview()
         }
     }
@@ -300,6 +301,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("AnyQA", "handleQaExtras extras=${intent.extras}")
         val autoPrompt = intent.getStringExtra("autoPrompt")
         val openUrl = intent.getStringExtra("openUrl")
+        val overlayHtml = intent.getStringExtra("overlayHtml")
         val navTest = intent.getStringExtra("navTest")
         val modelSearchBase = intent.getStringExtra("modelSearchBase")
         val runJs = intent.getStringExtra("runJs")
@@ -317,6 +319,7 @@ class MainActivity : AppCompatActivity() {
                 sendMessage()
             }
             !openUrl.isNullOrBlank() -> root.post { showPreview(url = openUrl) }
+            !overlayHtml.isNullOrBlank() -> root.post { showOverlay(overlayHtml) }
             intent.getBooleanExtra("showHome", false) -> root.post { hidePreview() }
             intent.getBooleanExtra("openSettings", false) -> root.post { showSettings() }
             !modelSearchBase.isNullOrBlank() -> root.post {
@@ -853,9 +856,14 @@ class MainActivity : AppCompatActivity() {
         visible = visible.replace("**", "").replace("`", "").trim()
         if (visible.isNotEmpty()) addMessage(you = false, text = visible)
 
-        val html = codeMatches.firstOrNull()?.groupValues?.get(1)?.trim()
+        val overlayMatch = codeMatches.firstOrNull {
+            it.groupValues[1].equals("html-overlay", ignoreCase = true)
+        }
+        val overlayHtml = overlayMatch?.groupValues?.get(2)?.trim()
+        val html = codeMatches.firstOrNull { it !== overlayMatch }?.groupValues?.get(2)?.trim()
         val url = urlMatch?.groupValues?.get(1)?.trimEnd(',', '.', ')', '"')
         when {
+            !overlayHtml.isNullOrEmpty() -> showOverlay(overlayHtml)
             !html.isNullOrEmpty() -> showPreview(html = html)
             url != null -> showPreview(url = url)
         }
@@ -1021,6 +1029,29 @@ class MainActivity : AppCompatActivity() {
         updatePipState()
         if (sheetOpen) closeSheet()
         updateBack()
+    }
+
+    // ---------- Floating AI overlays ----------
+
+    private var overlayPanel: OverlayPanel? = null
+
+    /** Renders AI-written overlay HTML in a small draggable panel above the preview. */
+    private fun showOverlay(html: String) {
+        if (!previewContainer.isVisible) {
+            previewContainer.isVisible = true
+            previewContainer.alpha = 1f
+        }
+        val panel = overlayPanel ?: OverlayPanel(this, previewContainer).also { overlayPanel = it }
+        panel.show(html)
+        if (sheetOpen) closeSheet()
+        updateBack()
+        Log.d("AnyQA", "overlay bytes=${html.length}")
+    }
+
+    private fun hideOverlay() {
+        overlayPanel?.hide()
+        updateBack()
+        Log.d("AnyQA", "overlay hidden")
     }
 
     private fun hidePreview() {

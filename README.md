@@ -33,6 +33,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### AI app builder
 - Describe anything — game, tool, page, calculator — in Thai or English, and the AI returns one complete single-file app that starts instantly, full-screen.
 - Fenced `` ```html `` replies are detected and rendered; the AI is instructed to produce self-contained apps (all CSS/JS inline, no external resources), mobile-first and touch-friendly.
+- **Overlay panels** — ask for something floating (a clock, notes, extra buttons) and the AI returns an `` ```html-overlay `` block that opens as a small draggable panel on top of the current screen.
 - `OPEN_URL:` protocol — ask for a site and the built-in browser opens it (real site URLs, including search URLs).
 - Bring your own AI key: **Gemini (free tier)**, **OpenAI**, **OpenRouter**, **Groq**, or any OpenAI-compatible endpoint via the Custom option (base URL + model).
 - Configurable context window, per-provider base URL and model, `/clear` to reset the conversation.
@@ -69,7 +70,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
         └───────────────────────────────────────────┘
 ````
 
-- The assistant reply is parsed on-device: a fenced `` ```html `` block is rendered in the app WebView; an `OPEN_URL:` line navigates the browser WebView. The AI is instructed to never mix the two.
+- The assistant reply is parsed on-device: a fenced `` ```html `` block is rendered in the app WebView; an `` ```html-overlay `` block opens in a draggable floating panel on top of the screen; an `OPEN_URL:` line navigates the browser WebView. The AI is instructed to never mix them.
 - Chat uses any OpenAI-compatible `POST {base}/chat/completions` endpoint with a bearer key, so providers are interchangeable.
 - The ad blocker works at the WebView layer: requests are checked against a host blocklist before they leave the device, and a document-start script on YouTube prunes ad placements from player API responses and skips ad playback.
 - Mini-apps run sandboxed in a plain WebView: HTML/CSS/JS only, no native Android access.
