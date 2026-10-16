@@ -9,7 +9,8 @@ A Thai-first Android app-builder — describe an idea in chat and the built-in A
 ![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
 ![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white)
 ![minSdk](https://img.shields.io/badge/minSdk-24%2B-3DDC84)
-![Version](https://img.shields.io/badge/version-1.0-blue)
+![Release](https://img.shields.io/github/v/release/Suidvck/Any?label=release&color=blue)
+![License](https://img.shields.io/github/license/Suidvck/Any?color=green)
 
 </div>
 
@@ -22,6 +23,10 @@ Any turns plain language into working software. Ask for a game, a tool, a calcul
 Ask for a website instead, and Any opens it in its own built-in browser — a full-screen WebView with an ad blocker, real fullscreen video, Picture-in-Picture, and screen-off audio playback.
 
 The interface is Thai-first, and the AI understands and answers in both Thai and English.
+
+## Download
+
+Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/latest), install it, and add your API key in `/setting` — the free Gemini default is enough to start.
 
 ## Features
 
@@ -110,7 +115,11 @@ Works with Android Studio (any recent version) or a JDK 17+ toolchain and the An
 
 - Generated mini-apps are web apps only — they run inside a WebView sandbox and cannot call native Android APIs.
 - YouTube ad skipping depends on the current player response format; if YouTube changes it, the skip logic may need an update.
-- The app interface is in Thai; the AI support both Thai and English.
+- The app interface is in Thai; the AI supports both Thai and English.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ---
 
