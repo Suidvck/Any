@@ -26,7 +26,9 @@ import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.util.Rational
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -235,11 +237,7 @@ class MainActivity : AppCompatActivity() {
         val btnInstagram: ImageButton = findViewById(R.id.btn_instagram)
 
         previewFab.setOnClickListener { openSheet() }
-        previewFab.setOnLongClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            startVoiceCommand()
-            true
-        }
+        makeFabDraggable(previewFab)
         scrim.setOnClickListener { closeSheet() }
         sendButton.setOnClickListener { sendMessage() }
         composeBox.setOnClickListener { openSheet() }
@@ -333,6 +331,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         evalJs("window.__anyForcePlay=false")
+        evalJs(CLEAR_PIP_ZOOM_JS)
         if (hasContent) startVideoPolling()
     }
 
@@ -366,6 +365,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
+        Log.d("AnyQA", "pip=$inPip video=$videoActive playing=$lastPlaying custom=${customView != null}")
         findViewById<View>(R.id.fab_chat_preview)?.visibility = when {
             inPip -> View.GONE
             previewContainer.isVisible -> View.VISIBLE
@@ -373,7 +373,20 @@ class MainActivity : AppCompatActivity() {
         }
         if (inPip) {
             if (sheetOpen) closeSheet()
+            // Video-only PiP: if the video is still inline, ask it to go HTML5 fullscreen —
+            // the app renders that view alone, so the PiP window shows just the video.
+            if (customView == null && videoActive && lastPlaying) {
+                ui.postDelayed({
+                    if (isInPictureInPictureMode && customView == null && videoActive && lastPlaying) {
+                        webView.evaluateJavascript(PIP_FULLSCREEN_JS) { r ->
+                            Log.d("AnyQA", "pip fullscreen -> $r")
+                        }
+                    }
+                }, 300)
+            }
         } else {
+            // Leaving PiP: undo the CSS fallback zoom if it was applied.
+            evalJs(CLEAR_PIP_ZOOM_JS)
             // If the PiP window was dismissed (not expanded), the app stays stopped:
             // pause the video so no hidden sound keeps playing.
             ui.postDelayed({
@@ -1074,7 +1087,136 @@ class MainActivity : AppCompatActivity() {
         hideStatusBar()
     }
 
+    /** Lets the chat bubble be dragged anywhere over the preview and remembers where. */
+    private fun makeFabDraggable(fab: FloatingActionButton) {
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+
+        // Restore the last spot (clamped so it stays inside the preview).
+        root.post {
+            val sx = prefs.getFloat("fab_x", -1f)
+            val sy = prefs.getFloat("fab_y", -1f)
+            if (sx >= 0f && sy >= 0f) {
+                fab.post {
+                    fab.x = sx.coerceIn(0f, (previewContainer.width - fab.width).coerceAtLeast(0).toFloat())
+                    fab.y = sy.coerceIn(0f, (previewContainer.height - fab.height).coerceAtLeast(0).toFloat())
+                }
+            }
+        }
+
+        var downX = 0f
+        var downY = 0f
+        var startX = 0f
+        var startY = 0f
+        var dragging = false
+        var longPressed = false
+        val longPress = Runnable {
+            if (!dragging) {
+                longPressed = true
+                fab.isPressed = false
+                fab.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                startVoiceCommand()
+            }
+        }
+
+        fab.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = ev.rawX
+                    downY = ev.rawY
+                    startX = fab.x
+                    startY = fab.y
+                    dragging = false
+                    longPressed = false
+                    fab.isPressed = true
+                    ui.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = ev.rawX - downX
+                    val dy = ev.rawY - downY
+                    if (!dragging && (Math.abs(dx) > slop || Math.abs(dy) > slop)) {
+                        dragging = true
+                        fab.isPressed = false
+                        ui.removeCallbacks(longPress)
+                    }
+                    if (dragging) {
+                        val maxX = (previewContainer.width - fab.width).coerceAtLeast(0)
+                        val maxY = (previewContainer.height - fab.height).coerceAtLeast(0)
+                        fab.x = (startX + dx).coerceIn(0f, maxX.toFloat())
+                        fab.y = (startY + dy).coerceIn(0f, maxY.toFloat())
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    ui.removeCallbacks(longPress)
+                    fab.isPressed = false
+                    if (dragging) {
+                        prefs.edit().putFloat("fab_x", fab.x).putFloat("fab_y", fab.y).apply()
+                    } else if (!longPressed) {
+                        fab.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    ui.removeCallbacks(longPress)
+                    fab.isPressed = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     // ---------- Picture-in-Picture ----------
+
+    /**
+     * Asked while entering PiP: try HTML5 fullscreen on the playing video so the PiP window
+     * shows it alone. WebView may refuse programmatic fullscreen, so after a moment this
+     * falls back to scaling the page so the video fills the whole viewport instead.
+     */
+    private val PIP_FULLSCREEN_JS = """
+        (function(){
+          try{
+            if(window.__anyPipZoom) return 'zoom-active';
+            if(document.fullscreenElement||document.webkitFullscreenElement) return 'already';
+            var v=document.querySelector('video');
+            if(!v) return 'novideo';
+            if(v.paused||v.ended) return 'paused';
+            var fn=v.requestFullscreen||v.webkitRequestFullscreen;
+            if(fn){ try{ fn.call(v); }catch(e){} }
+            setTimeout(function(){
+              try{
+                if(document.fullscreenElement||document.webkitFullscreenElement) return;
+                var vv=document.querySelector('video');
+                if(!vv||vv.paused||vv.ended) return;
+                var r=vv.getBoundingClientRect();
+                if(r.width<2||r.height<2) return;
+                var s=Math.min(window.innerWidth/r.width,window.innerHeight/r.height);
+                var tx=(window.innerWidth-r.width*s)/2-r.left*s;
+                var ty=(window.innerHeight-r.height*s)/2-r.top*s;
+                var d=document.documentElement;
+                d.style.transformOrigin='0 0';
+                d.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
+                window.__anyPipZoom=true;
+              }catch(e2){}
+            },700);
+            return 'sent';
+          }catch(e){ return 'err:'+e.name; }
+        })();
+    """.trimIndent()
+
+    /** Undoes the CSS zoom fallback after PiP ends. */
+    private val CLEAR_PIP_ZOOM_JS = """
+        (function(){try{
+          if(window.__anyPipZoom){
+            var d=document.documentElement;
+            d.style.transform='';
+            d.style.transformOrigin='';
+            window.__anyPipZoom=false;
+          }
+        }catch(e){}})();
+    """.trimIndent()
 
     private fun enterPip() {
         if (Build.VERSION.SDK_INT < 26) return

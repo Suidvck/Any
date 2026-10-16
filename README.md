@@ -42,7 +42,8 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 - Full-screen WebView with full HTML5 video support — including true fullscreen (landscape) playback.
 - **Ad blocker** — host-based blocking of major ad and tracker networks, plus a built-in YouTube ad skipper that prunes ad placements from player responses, skips ad players, and hides promoted feed cards. Toggleable in settings.
 - **Deep-link guard** — pages cannot bounce you into other apps (`intent://`, `market://`, `youtube://`, and similar schemes are blocked and kept inside Any).
-- **Picture-in-Picture** — leave the app while a video is playing and it continues in a floating window.
+- **Picture-in-Picture** — leave the app while a video is playing and it continues in a floating window that shows only the video, like a native player.
+- **Draggable chat bubble** — drag the chat button anywhere over the page; its position is remembered between sessions.
 - **Background playback** — audio and video keep playing with the screen off via a media-session keep-alive.
 
 ### Voice & commands
