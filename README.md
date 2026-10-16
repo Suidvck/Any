@@ -33,7 +33,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### AI app builder
 - Describe anything — game, tool, page, calculator — in Thai or English, and the AI returns one complete single-file app that starts instantly, full-screen.
 - Fenced `` ```html `` replies are detected and rendered; the AI is instructed to produce self-contained apps (all CSS/JS inline, no external resources), mobile-first and touch-friendly.
-- **Overlay panels** — ask for something floating (a clock, notes, extra buttons) and the AI returns an `` ```html-overlay `` block that opens as a small draggable panel on top of the current screen.
+- **Overlay panels** — ask for something floating (a clock, notes, extra buttons) and the AI returns an `` ```html-overlay `` block that opens as a small draggable panel on top of the current screen. It stays visible even when a video goes fullscreen.
 - `OPEN_URL:` protocol — ask for a site and the built-in browser opens it (real site URLs, including search URLs).
 - Bring your own AI key: **Gemini (free tier)**, **OpenAI**, **OpenRouter**, **Groq**, or any OpenAI-compatible endpoint via the Custom option (base URL + model).
 - Configurable context window, per-provider base URL and model, `/clear` to reset the conversation.

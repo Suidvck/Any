@@ -372,6 +372,11 @@ class MainActivity : AppCompatActivity() {
             else -> View.GONE
         }
         if (inPip) {
+            // Don't let the overlay float inside the small PiP window.
+            if (overlayPanel?.isVisible == true) {
+                overlayHiddenForPip = true
+                overlayPanel?.hide()
+            }
             if (sheetOpen) closeSheet()
             // Video-only PiP: if the video is still inline, ask it to go HTML5 fullscreen —
             // the app renders that view alone, so the PiP window shows just the video.
@@ -381,11 +386,25 @@ class MainActivity : AppCompatActivity() {
                         webView.evaluateJavascript(PIP_FULLSCREEN_JS) { r ->
                             Log.d("AnyQA", "pip fullscreen -> $r")
                         }
+                        // If fullscreen could not engage, zoom the page so the PiP
+                        // window still shows only the video.
+                        ui.postDelayed({
+                            if (isInPictureInPictureMode && customView == null && videoActive) {
+                                webView.evaluateJavascript(PIP_ZOOM_JS) { r2 ->
+                                    Log.d("AnyQA", "pip zoom -> $r2")
+                                }
+                            }
+                        }, 900)
                     }
                 }, 300)
             }
         } else {
-            // Leaving PiP: undo the CSS fallback zoom if it was applied.
+            // Leaving PiP: bring back the overlay and undo the CSS fallback zoom.
+            if (overlayHiddenForPip) {
+                overlayHiddenForPip = false
+                overlayPanel?.reveal()
+                placeOverlay(aboveAll = customView != null)
+            }
             evalJs(CLEAR_PIP_ZOOM_JS)
             // If the PiP window was dismissed (not expanded), the app stays stopped:
             // pause the video so no hidden sound keeps playing.
@@ -481,6 +500,8 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
                 hideStatusBar()
+                // Keep the AI overlay floating above the fullscreen video.
+                if (overlayPanel?.isVisible == true) placeOverlay(aboveAll = true)
             }
 
             override fun onHideCustomView() = exitVideoFullscreen()
@@ -1047,6 +1068,7 @@ class MainActivity : AppCompatActivity() {
     // ---------- Floating AI overlays ----------
 
     private var overlayPanel: OverlayPanel? = null
+    private var overlayHiddenForPip = false
 
     /** Renders AI-written overlay HTML in a small draggable panel above the preview. */
     private fun showOverlay(html: String) {
@@ -1054,11 +1076,20 @@ class MainActivity : AppCompatActivity() {
             previewContainer.isVisible = true
             previewContainer.alpha = 1f
         }
-        val panel = overlayPanel ?: OverlayPanel(this, previewContainer).also { overlayPanel = it }
+        val panel = overlayPanel ?: OverlayPanel(this, root).also { overlayPanel = it }
         panel.show(html)
+        placeOverlay(aboveAll = customView != null)
         if (sheetOpen) closeSheet()
         updateBack()
         Log.d("AnyQA", "overlay bytes=${html.length}")
+    }
+
+    /** Keeps the overlay above the video fullscreen view, or below the chat sheet otherwise. */
+    private fun placeOverlay(aboveAll: Boolean) {
+        val v = overlayPanel?.panelView ?: return
+        root.removeView(v)
+        if (aboveAll) root.addView(v)
+        else root.addView(v, (root.indexOfChild(previewContainer) + 1).coerceAtMost(root.childCount))
     }
 
     private fun hideOverlay() {
@@ -1070,6 +1101,7 @@ class MainActivity : AppCompatActivity() {
     private fun hidePreview() {
         webView.stopLoading()
         previewContainer.isVisible = false
+        overlayPanel?.hide()
         updatePipState()
         updateBack()
     }
@@ -1085,6 +1117,8 @@ class MainActivity : AppCompatActivity() {
         customViewCallback?.onCustomViewHidden()
         customViewCallback = null
         hideStatusBar()
+        // Fullscreen is gone: put the overlay back below the sheet so chat covers it again.
+        if (overlayPanel?.isVisible == true) placeOverlay(aboveAll = false)
     }
 
     /** Lets the chat bubble be dragged anywhere over the preview and remembers where. */
@@ -1171,37 +1205,44 @@ class MainActivity : AppCompatActivity() {
     // ---------- Picture-in-Picture ----------
 
     /**
-     * Asked while entering PiP: try HTML5 fullscreen on the playing video so the PiP window
-     * shows it alone. WebView may refuse programmatic fullscreen, so after a moment this
-     * falls back to scaling the page so the video fills the whole viewport instead.
+     * Asked while entering PiP: fullscreen the playing video so the PiP window shows it
+     * alone. webkitEnterFullscreen works without a user gesture in the WebView; the
+     * standard requestFullscreen is kept as a second try for other WebView versions.
      */
     private val PIP_FULLSCREEN_JS = """
+        (function(){
+          try{
+            if(document.fullscreenElement||document.webkitFullscreenElement) return 'already';
+            var v=document.querySelector('video');
+            if(!v) return 'novideo';
+            if(v.paused||v.ended) return 'paused';
+            if(v.webkitEnterFullscreen){ try{ v.webkitEnterFullscreen(); }catch(e){} }
+            if(v.webkitDisplayingFullscreen) return 'wk';
+            var fn=v.requestFullscreen||v.webkitRequestFullscreen;
+            if(fn){ try{ var p=fn.call(v); if(p&&p.catch)p.catch(function(){}); }catch(e){} }
+            return 'sent';
+          }catch(e){ return 'err:'+e.name; }
+        })();
+    """.trimIndent()
+
+    /** Last-resort fallback for PiP: scale the page so the video fills the whole viewport. */
+    private val PIP_ZOOM_JS = """
         (function(){
           try{
             if(window.__anyPipZoom) return 'zoom-active';
             if(document.fullscreenElement||document.webkitFullscreenElement) return 'already';
             var v=document.querySelector('video');
-            if(!v) return 'novideo';
-            if(v.paused||v.ended) return 'paused';
-            var fn=v.requestFullscreen||v.webkitRequestFullscreen;
-            if(fn){ try{ fn.call(v); }catch(e){} }
-            setTimeout(function(){
-              try{
-                if(document.fullscreenElement||document.webkitFullscreenElement) return;
-                var vv=document.querySelector('video');
-                if(!vv||vv.paused||vv.ended) return;
-                var r=vv.getBoundingClientRect();
-                if(r.width<2||r.height<2) return;
-                var s=Math.min(window.innerWidth/r.width,window.innerHeight/r.height);
-                var tx=(window.innerWidth-r.width*s)/2-r.left*s;
-                var ty=(window.innerHeight-r.height*s)/2-r.top*s;
-                var d=document.documentElement;
-                d.style.transformOrigin='0 0';
-                d.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
-                window.__anyPipZoom=true;
-              }catch(e2){}
-            },700);
-            return 'sent';
+            if(!v||v.paused||v.ended) return 'novideo';
+            var r=v.getBoundingClientRect();
+            if(r.width<2||r.height<2) return 'norect';
+            var s=Math.min(window.innerWidth/r.width,window.innerHeight/r.height);
+            var tx=(window.innerWidth-r.width*s)/2-r.left*s;
+            var ty=(window.innerHeight-r.height*s)/2-r.top*s;
+            var d=document.documentElement;
+            d.style.transformOrigin='0 0';
+            d.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
+            window.__anyPipZoom=true;
+            return 'zoomed';
           }catch(e){ return 'err:'+e.name; }
         })();
     """.trimIndent()

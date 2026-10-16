@@ -122,6 +122,13 @@ class OverlayPanel(private val context: Context, private val parent: FrameLayout
         host.visibility = View.GONE
     }
 
+    fun reveal() {
+        host.visibility = View.VISIBLE
+    }
+
+    /** The floating panel view itself; the activity root parents it. */
+    val panelView: FrameLayout get() = host
+
     /** Sizes the panel after its content: shrink-wraps small widgets, caps huge ones. */
     private fun measureContent() {
         web.evaluateJavascript(
