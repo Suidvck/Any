@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Chat sheet palette -->
+    <color name="bg_screen">#0C0C11</color>
+    <color name="sheet_bg">#17171B</color>
+    <color name="brand">#5F6CF5</color>
+    <color name="scrim">#26000000</color>
+    <color name="handle">#D9D9E2</color>
+    <color name="label_on_dark">#C7C7D2</color>
+    <color name="text_primary_dark">#17171B</color>
+    <color name="input_hint">#9A9AA5</color>
+    <color name="icon_muted">#9C9CA8</color>
+
+    <!-- Home screen (dark) -->
+    <color name="card_bg">#17171D</color>
+    <color name="card_stroke">#14FFFFFF</color>
+    <color name="chip_bg">#23232B</color>
+    <color name="chip_text">#D6D6DE</color>
+    <color name="muted">#9A9AA6</color>
+    <color name="body_text">#EDEDF2</color>
+    <color name="green_dot">#3DDC84</color>
+    <color name="progress_track">#2E2E38</color>
+
+    <!-- Home redesign (warm dark, per mockup) -->
+    <color name="home_bg">#2B2523</color>
+    <color name="control_bg">#3B3431</color>
+    <color name="control_icon">#F3EFEC</color>
+    <color name="home_text">#EAE5E2</color>
+    <color name="home_muted">#9A918B</color>
+    <color name="home_icon">#A39C96</color>
+    <color name="progress_track_home">#4A423E</color>
+
+    <!-- Chat sheet redesign (warm) -->
+    <color name="bubble_you">#9A7471</color>
+    <color name="bubble_assistant">#D5D0CB</color>
+    <color name="chat_panel_bg">#2E2825</color>
+    <color name="chat_input_bg">#211C19</color>
+    <color name="send_circle">#3A332F</color>
+    <color name="send_icon">#C6BFB9</color>
+    <color name="handle_light">#E5E0DB</color>
+    <color name="scrim_light">#59FFFFFF</color>
+</resources>
