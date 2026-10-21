@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Extras bottom sheet is intentionally dark in both themes. -->
+    <color name="system_sheet">#17171B</color>
+    <color name="system_card">#23232B</color>
+    <color name="system_text">#FFFFFF</color>
+    <color name="system_muted">#9A9AA5</color>
+    <color name="system_accent">#5F6CF5</color>
+    <color name="system_handle">#3A3A44</color>
+</resources>

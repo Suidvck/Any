@@ -43,4 +43,6 @@
     <string name="link_blocked">บล็อกการเปิดแอพอื่นไว้แล้วครับ 🚫</string>
     <string name="adblock_label">บล็อกโฆษณา / แทร็กเกอร์</string>
     <string name="home">หน้าหลัก</string>
+    <string name="more">เพิ่มเติม</string>
+    <string name="attach_photo">แนบรูป</string>
 </resources>

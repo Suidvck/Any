@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App lock -->
+    <string name="system_lock_title">ปลดล็อค Any</string>
+    <string name="system_lock_subtitle">ยืนยันตัวตนเพื่อเข้าใช้งาน</string>
+    <string name="system_lock_cancel">ยกเลิก</string>
+    <string name="system_lock_unsupported">อุปกรณ์ไม่รองรับไบโอเมตริก</string>
+
+    <!-- Extras menu -->
+    <string name="system_menu_version">Any v%1$s</string>
+
+    <string name="system_menu_history_title">ประวัติแชท</string>
+    <string name="system_menu_history_sub">ย้อนดูบทสนทนาที่ผ่านมา</string>
+
+    <string name="system_menu_library_title">แอพของฉัน</string>
+    <string name="system_menu_library_sub">แอพที่ AI สร้างและบันทึกไว้</string>
+
+    <string name="system_menu_tabs_title">แท็บ/ประวัติเว็บ</string>
+    <string name="system_menu_tabs_sub">แท็บที่เปิดอยู่และเว็บที่เคยเข้าชม</string>
+
+    <string name="system_menu_find_title">ค้นหาในหน้า</string>
+    <string name="system_menu_find_sub">หาข้อความบนหน้าเว็บที่เปิดอยู่</string>
+
+    <string name="system_menu_automations_title">ตั้งเวลาอัตโนมัติ</string>
+    <string name="system_menu_automations_sub">เปิดลิงก์หรือสั่งแชทตามเวลา</string>
+
+    <string name="system_menu_appearance_title">รูปลักษณ์</string>
+    <string name="system_menu_appearance_sub">สีหลักและรูปแบบนาฬิกา</string>
+
+    <string name="system_menu_voice_title">อ่านคำตอบเป็นเสียง</string>
+    <string name="system_menu_voice_sub">ให้ Any อ่านคำตอบออกเสียง</string>
+
+    <string name="system_menu_lock_title">ล็อคแอพ</string>
+    <string name="system_menu_lock_sub">ปลดล็อคด้วยไบโอเมตริก</string>
+
+    <string name="system_menu_update_title">ตรวจอัปเดต</string>
+    <string name="system_menu_update_sub">ตรวจหาเวอร์ชันใหม่</string>
+
+    <string name="system_menu_about_title">เกี่ยวกับ Any</string>
+    <string name="system_menu_about_sub">เวอร์ชัน เครดิต และข้อมูลแอพ</string>
+</resources>

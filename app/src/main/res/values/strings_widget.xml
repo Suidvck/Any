@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_any_name">Any</string>
+    <string name="widget_any_description">นาฬิกาและทางลัดไปยังแชท แอพของฉัน และ YouTube</string>
+    <string name="widget_any_label">ANY</string>
+    <string name="widget_cd_chat">เปิดแชท Any</string>
+    <string name="widget_cd_apps">เปิดแอพของฉัน</string>
+    <string name="widget_cd_play">เปิด YouTube</string>
+</resources>

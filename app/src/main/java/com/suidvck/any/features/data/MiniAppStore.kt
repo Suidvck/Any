@@ -1,0 +1,233 @@
+package com.suidvck.any.features.data
+
+import android.content.Context
+import java.io.File
+import java.util.Locale
+import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
+
+data class MiniApp(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val html: String,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+/**
+ * Stores the mini-app library as a small index (miniapps/index.json) plus one atomically
+ * written HTML file per app (miniapps/<id>.html).
+ */
+class MiniAppStore(context: Context) {
+
+    private val appContext: Context = context.applicationContext ?: context
+    private val dir = File(appContext.filesDir, "miniapps")
+    private val indexFile = JsonFile(File(dir, "index.json"))
+    private val lock = Any()
+
+    private var loaded = false
+    private val apps = ArrayList<MiniApp>()
+    private val htmlCache = HashMap<String, String>()
+
+    fun list(): List<MiniApp> = synchronized(lock) {
+        ensureLoaded()
+        apps.sortedByDescending { it.updatedAt }
+            .map { app -> app.copy(html = htmlFor(app.id)) }
+    }
+
+    fun get(id: String): MiniApp? = synchronized(lock) {
+        ensureLoaded()
+        apps.firstOrNull { it.id == id }?.let { app -> app.copy(html = htmlFor(app.id)) }
+    }
+
+    fun save(
+        html: String,
+        name: String? = null,
+        emoji: String? = null,
+        id: String? = null
+    ): MiniApp = synchronized(lock) {
+        ensureLoaded()
+        val now = System.currentTimeMillis()
+        val wantedId = id?.trim()?.takeIf { it.isNotEmpty() }
+        val existing = wantedId?.let { key -> apps.firstOrNull { it.id == key } }
+        val finalId = wantedId ?: newId()
+        val finalName = name?.trim()?.takeIf { it.isNotEmpty() }
+            ?: existing?.name
+            ?: suggestName(html, DEFAULT_NAME)
+        val finalEmoji = emoji?.trim()?.takeIf { it.isNotEmpty() }
+            ?: existing?.emoji
+            ?: suggestEmoji(html)
+        val finalCreatedAt = existing?.createdAt ?: now
+        val app = MiniApp(finalId, finalName, finalEmoji, html, finalCreatedAt, now)
+
+        // Write the HTML first, then publish the index entry so a failed index write never
+        // leaves a half-written page behind.
+        JsonFile(htmlFile(finalId)).write(html)
+        htmlCache[finalId] = html
+        apps.removeAll { it.id == finalId }
+        apps.add(app)
+        persistLocked()
+        app
+    }
+
+    fun rename(id: String, name: String, emoji: String) {
+        synchronized(lock) {
+            ensureLoaded()
+            val index = apps.indexOfFirst { it.id == id }
+            if (index >= 0) {
+                val old = apps[index]
+                val newName = name.trim().ifEmpty { old.name }
+                val newEmoji = emoji.trim().ifEmpty { old.emoji }
+                apps[index] = old.copy(
+                    name = newName,
+                    emoji = newEmoji,
+                    updatedAt = System.currentTimeMillis()
+                )
+                persistLocked()
+            }
+        }
+    }
+
+    fun delete(id: String) {
+        synchronized(lock) {
+            ensureLoaded()
+            val changed = apps.removeAll { it.id == id }
+            if (changed) {
+                htmlCache.remove(id)
+                try {
+                    htmlFile(id).delete()
+                } catch (_: Throwable) {
+                    // A stale HTML file is harmless; the index no longer references it.
+                }
+                persistLocked()
+            }
+        }
+    }
+
+    fun originFor(id: String): String = "https://app-$id.anyapp.local/"
+
+    fun suggestName(html: String, fallback: String): String = rawTitle(html) ?: fallback
+
+    fun suggestEmoji(html: String): String {
+        val title = rawTitle(html).orEmpty()
+        val sample = (title + "\n" + html.take(6000)).lowercase(Locale.ROOT)
+        for ((keywords, emoji) in emojiRules) {
+            if (keywords.any { sample.contains(it) }) return emoji
+        }
+        return DEFAULT_EMOJI
+    }
+
+    private fun ensureLoaded() {
+        if (loaded) return
+        loaded = true
+        val root = indexFile.readObject() ?: return
+        val array = root.optJSONArray("apps") ?: return
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val id = obj.optString("id").trim()
+            if (id.isEmpty() || apps.any { it.id == id }) continue
+            val name = obj.optString("name").trim().ifEmpty { DEFAULT_NAME }
+            val emoji = obj.optString("emoji").trim().ifEmpty { DEFAULT_EMOJI }
+            val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L }
+                ?: System.currentTimeMillis()
+            val updatedAt = obj.optLong("updatedAt", createdAt).takeIf { it > 0L } ?: createdAt
+            apps.add(MiniApp(id, name, emoji, "", createdAt, updatedAt))
+        }
+    }
+
+    private fun persistLocked() {
+        val array = JSONArray()
+        for (app in apps.sortedByDescending { it.updatedAt }) {
+            array.put(
+                JSONObject()
+                    .put("id", app.id)
+                    .put("name", app.name)
+                    .put("emoji", app.emoji)
+                    .put("createdAt", app.createdAt)
+                    .put("updatedAt", app.updatedAt)
+            )
+        }
+        indexFile.write(JSONObject().put("version", 1).put("apps", array))
+    }
+
+    private fun htmlFor(id: String): String {
+        val cached = htmlCache[id]
+        if (cached != null) return cached
+        val text = JsonFile(htmlFile(id)).readText().orEmpty()
+        htmlCache[id] = text
+        return text
+    }
+
+    private fun htmlFile(id: String): File = File(dir, safeFileName(id) + ".html")
+
+    private fun newId(): String {
+        var id: String
+        do {
+            id = UUID.randomUUID().toString().take(8)
+        } while (apps.any { it.id == id })
+        return id
+    }
+
+    private fun rawTitle(html: String): String? {
+        val match = TITLE_REGEX.find(html) ?: return null
+        val raw = match.groupValues.getOrNull(1) ?: return null
+        val text = decodeEntities(raw.replace(TAG_REGEX, " "))
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
+        return text.ifEmpty { null }
+    }
+
+    private fun safeFileName(id: String): String =
+        id.trim().replace(UNSAFE_FILE_CHARS, "_").ifEmpty { "app" }
+
+    private fun decodeEntities(input: String): String {
+        var out = input
+        out = out.replace("&nbsp;", " ", ignoreCase = true)
+        out = out.replace("&lt;", "<", ignoreCase = true)
+        out = out.replace("&gt;", ">", ignoreCase = true)
+        out = out.replace("&quot;", "\"", ignoreCase = true)
+        out = out.replace("&#39;", "'", ignoreCase = true)
+        out = out.replace("&#x27;", "'", ignoreCase = true)
+        // Decode ampersands last so "&amp;lt;" becomes "&lt;" rather than "<".
+        out = out.replace("&amp;", "&", ignoreCase = true)
+        return out
+    }
+
+    private companion object {
+        const val DEFAULT_NAME = "แอพใหม่"
+        const val DEFAULT_EMOJI = "🧩"
+
+        val TITLE_REGEX = Regex("<title\\b[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
+        val TAG_REGEX = Regex("<[^>]+>")
+        val WHITESPACE_REGEX = Regex("\\s+")
+        val UNSAFE_FILE_CHARS = Regex("[^A-Za-z0-9._-]")
+
+        val emojiRules: List<Pair<List<String>, String>> = listOf(
+            listOf("calculator", "เครื่องคิดเลข", "คำนวณ") to "🧮",
+            listOf("todo", "to-do", "task list", "checklist", "รายการงาน", "งานที่ต้อง") to "✅",
+            listOf("calendar", "ปฏิทิน", "ตารางนัด") to "📅",
+            listOf("timer", "stopwatch", "pomodoro", "นาฬิกาจับเวลา") to "⏱️",
+            listOf("clock", "นาฬิกา", "world time", "เวลาโลก") to "🕒",
+            listOf("weather", "พยากรณ์", "อุณหภูมิ", "อากาศ") to "⛅",
+            listOf("music", "เพลง", "spotify", "soundcloud", "song") to "🎵",
+            listOf("movie", "film", "หนัง", "video player", "youtube") to "🎬",
+            listOf("camera", "กล้อง", "photo", "รูปภาพ") to "📷",
+            listOf("note", "memo", "โน้ต", "จดบันทึก", "journal", "diary") to "📝",
+            listOf("chatgpt", "openai", "gpt", "ปัญญาประดิษฐ์", "ai assistant") to "🤖",
+            listOf("chat", "แชท", "แชต", "messenger") to "💬",
+            listOf("money", "finance", "budget", "การเงิน", "ลงทุน", "crypto", "stock") to "💰",
+            listOf("shop", "store", "ร้านค้า", "ecommerce", "cart", "สินค้า") to "🛍️",
+            listOf("map", "แผนที่", "travel", "เที่ยว", "นำทาง") to "🗺️",
+            listOf("game", "เกม", "arcade", "puzzle") to "🎮",
+            listOf("quiz", "trivia", "แบบทดสอบ", "คำถาม") to "🧠",
+            listOf("fitness", "workout", "gym", "ออกกำลัง", "สุขภาพ") to "💪",
+            listOf("food", "อาหาร", "recipe", "สูตรอาหาร", "เมนู") to "🍔",
+            listOf("translate", "แปลภาษา", "language") to "🌐",
+            listOf("email", "mail", "อีเมล", "inbox") to "✉️",
+            listOf("chart", "graph", "dashboard", "สถิติ", "กราฟ") to "📊",
+            listOf("dice", "สุ่ม", "random") to "🎲"
+        )
+    }
+}

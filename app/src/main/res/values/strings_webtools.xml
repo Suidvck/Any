@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Find bar -->
+    <string name="webtools_find_hint">ค้นหาในหน้า</string>
+    <string name="webtools_find_prev">ก่อนหน้า</string>
+    <string name="webtools_find_next">ถัดไป</string>
+    <string name="webtools_close">ปิด</string>
+
+    <!-- Page assistant -->
+    <string name="webtools_assistant_title">ผู้ช่วยหน้าเว็บ</string>
+    <string name="webtools_assistant_subtitle">สรุป แปล หรือถามเกี่ยวกับหน้านี้</string>
+    <string name="webtools_summary_title">สรุปหน้านี้</string>
+    <string name="webtools_summary_sub">สรุปใจความสำคัญของหน้านี้ให้สั้นกระชับ</string>
+    <string name="webtools_translate_title">แปลเป็นไทย</string>
+    <string name="webtools_translate_sub">แปลเนื้อหาทั้งหน้าเป็นภาษาไทย</string>
+    <string name="webtools_question_hint">ถามเกี่ยวกับหน้านี้…</string>
+    <string name="webtools_ask">ถาม</string>
+    <string name="webtools_status_reading">กำลังอ่านหน้านี้…</string>
+    <string name="webtools_status_thinking">กำลังคิด…</string>
+    <string name="webtools_unreadable">อ่านหน้านี้ไม่ได้</string>
+    <string name="webtools_question_empty">พิมพ์คำถามก่อนนะครับ</string>
+    <string name="webtools_failed">ประมวลผลไม่สำเร็จ ลองอีกครั้งนะครับ</string>
+    <string name="webtools_result_label">ผู้ช่วยหน้าเว็บ</string>
+</resources>

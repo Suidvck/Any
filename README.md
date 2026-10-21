@@ -33,6 +33,11 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### AI app builder
 - Describe anything — game, tool, page, calculator — in Thai or English, and the AI returns one complete single-file app that starts instantly, full-screen.
 - Fenced `` ```html `` replies are detected and rendered; the AI is instructed to produce self-contained apps (all CSS/JS inline, no external resources), mobile-first and touch-friendly.
+- **Saved app library** — every mini-app is saved automatically. Reopen it from the recent-apps rail on the home screen or the full library, and delete what you no longer need.
+- **Edit by chat** — open a saved app and ask for a change. The AI receives the app's current HTML and updates the same app in place instead of creating a duplicate.
+- **Streaming replies** — answers render token by token as the model writes, instead of waiting for the full response.
+- **Image attachments** — attach a photo or screenshot to a prompt for vision-capable models.
+- **Conversation history** — chats are stored locally. Start a new chat, switch between conversations, and continue exactly where you left off.
 - **Overlay panels** — ask for something floating (a clock, notes, extra buttons) and the AI returns an `` ```html-overlay `` block that opens as a small draggable panel on top of the current screen. It stays visible even when a video goes fullscreen.
 - `OPEN_URL:` protocol — ask for a site and the built-in browser opens it (real site URLs, including search URLs).
 - Bring your own AI key: **Gemini (free tier)**, **OpenAI**, **OpenRouter**, **Groq**, or any OpenAI-compatible endpoint via the Custom option (base URL + model).
@@ -40,6 +45,11 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 
 ### Built-in browser
 - Full-screen WebView with full HTML5 video support — including true fullscreen (landscape) playback.
+- **Tabs, history and bookmarks** — keep several sites open, revisit recent pages, and save favourites.
+- **Find in page** — search the current page with a compact find bar.
+- **Downloads** — files are handed to Android's DownloadManager and saved to Downloads.
+- **Desktop mode and force dark** — request desktop sites or apply a dark rendering pass to bright pages.
+- **Page assistant** — summarise, explain or ask questions about the page you are reading, without leaving it.
 - **Ad blocker** — host-based blocking of major ad and tracker networks, plus a built-in YouTube ad skipper that prunes ad placements from player responses, skips ad players, and hides promoted feed cards. Toggleable in settings.
 - **Deep-link guard** — pages cannot bounce you into other apps (`intent://`, `market://`, `youtube://`, and similar schemes are blocked and kept inside Any).
 - **Picture-in-Picture** — leave the app while a video is playing and it continues in a floating window that shows only the video, like a native player.
@@ -48,12 +58,23 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 
 ### Voice & commands
 - Long-press the floating chat ring to give a voice command using in-app speech recognition (Thai).
+- **Read replies aloud** with Android TTS, and use hands-free voice mode: Any listens again automatically after it finishes speaking.
 - `/clear` resets the chat · `/setting` opens configuration (provider, model, API key, context size, ad blocker).
+
+### Automation & privacy
+- **Scheduled automations** — set a daily reminder that opens a URL or a saved mini-app, or prefills a prompt for you. Jobs run through WorkManager and are stored only on the device.
+- **Biometric lock** — optionally protect Any with fingerprint, face or device credentials.
+- **In-app updater** — checks the signed GitHub Releases feed for a newer version and opens the download.
+- **Home-screen widget** — jump straight into a new chat from the launcher.
+
+### Personalization
+- **Accent colours** and **clock styles** — monochrome, violet, green, amber, blue, plus pixel Doto, monospace and bold sans clock faces, in light or dark theme.
+- **Customisable dock** — the three home shortcuts can each be changed to a preset (Instagram, Discord, TikTok, YouTube, GitHub, Google, ChatGPT) or any custom URL with a long-press.
 
 ### Design
 - Edge-to-edge and truly full-screen — the status bar is always hidden.
-- Floating chat sheet with a home button: light AI bubbles, rose user bubbles, pill input with a circular send button.
-- Pixel-art home screen with a stacked clock, soft corner blobs (light and dark palettes), media controls, and a quick-launch dock.
+- Floating chat sheet with a home button: light AI bubbles, rose user bubbles, pill input with a circular send button, plus an edit chip that shows which app your next message will update.
+- Home screen with a stacked pixel clock, soft corner blobs (light and dark palettes), media controls, a recent-apps rail, and the three-slot dock.
 - Swipe right on the home screen to jump back to the last page you opened (AI mini-app or site); the home button in the chat sheet takes you back home.
 - The signature two-ring logo (app icon and floating button).
 
@@ -105,19 +126,21 @@ Works with Android Studio (any recent version) or a JDK 17+ toolchain and the An
 
 - No account, no analytics, no telemetry, no ads of its own.
 - Your API key is stored only on your device, in the app's private settings. It is never bundled in this repository or in the APK.
-- Chat requests go directly from your device to whichever AI provider you configure.
+- Chat requests go directly from your device to whichever AI provider you configure. Attached images and page text are sent only when you explicitly ask the assistant about them.
+- Saved apps, conversations, browser data and automations live in the app's private storage and are never uploaded anywhere.
 
 ## Tech stack
 
 - 100% Kotlin, single Activity, fully programmatic UI (no XML-driven screens beyond the shell).
 - AndroidX WebKit `addDocumentStartJavaScript` for keep-alive and ad-blocking script injection.
-- AppCompat + Material components, `androidx.webkit` 1.12.1.
-- Theming: full-screen dark UI with custom drawing for the chat sheet, pixel clock, and logo.
+- AppCompat + Material components, `androidx.webkit` 1.12.1, WorkManager 2.10.1, Biometric 1.1.0.
+- Theming: full-screen light/dark UI with custom drawing for the chat sheet, pixel clock, blobs and logo.
 
 ## Known limitations
 
 - Generated mini-apps are web apps only — they run inside a WebView sandbox and cannot call native Android APIs.
 - YouTube ad skipping depends on the current player response format; if YouTube changes it, the skip logic may need an update.
+- Automations use WorkManager, so aggressive battery savers (MIUI, One UI, etc.) can delay a reminder; allow Any to run in the background for best results.
 - The app interface is in Thai; the AI supports both Thai and English.
 
 ## License

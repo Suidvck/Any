@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Circular dock slot (light home palette) -->
+    <color name="home_dock_slot_fill">#EFE8F9</color>
+    <color name="home_dock_slot_ring">#225B2B9E</color>
+</resources>

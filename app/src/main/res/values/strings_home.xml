@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dock editor -->
+    <string name="home_dock_edit_title">แก้ไขไอคอน Dock</string>
+    <string name="home_dock_preset">ไอคอน</string>
+    <string name="home_dock_url">ลิงก์ (URL)</string>
+    <string name="home_dock_label">ชื่อที่แสดง</string>
+    <string name="home_dock_url_hint">https://example.com</string>
+    <string name="home_dock_label_hint">ชื่อบนไอคอน</string>
+    <string name="home_dock_custom_hint">ช่องลิงก์และชื่อจะเปิดใช้เมื่อเลือกโหมดกำหนดเอง</string>
+    <string name="home_dock_url_invalid">ลิงก์ไม่ถูกต้อง</string>
+    <string name="home_dock_save_failed">บันทึกไม่สำเร็จ</string>
+    <string name="home_save">บันทึก</string>
+    <string name="home_cancel">ยกเลิก</string>
+
+    <!-- Dock presets -->
+    <string name="home_preset_instagram">Instagram</string>
+    <string name="home_preset_discord">Discord</string>
+    <string name="home_preset_tiktok">TikTok</string>
+    <string name="home_preset_youtube">YouTube</string>
+    <string name="home_preset_github">GitHub</string>
+    <string name="home_preset_google">Google</string>
+    <string name="home_preset_chatgpt">ChatGPT</string>
+    <string name="home_preset_custom">กำหนดเอง</string>
+
+    <!-- Appearance sheet -->
+    <string name="home_appearance_title">สีและนาฬิกา</string>
+    <string name="home_appearance_subtitle">เลือกสีหลักและรูปแบบตัวเลขบนหน้าจอ</string>
+    <string name="home_appearance_accent">สีหลัก</string>
+    <string name="home_appearance_clock">รูปแบบนาฬิกา</string>
+    <string name="home_appearance_done">เสร็จสิ้น</string>
+    <string name="home_clock_doto">Doto (Pixel)</string>
+    <string name="home_clock_mono">Monospace</string>
+    <string name="home_clock_sans">Sans Bold</string>
+    <string name="home_clock_preview">12:34</string>
+
+    <!-- Updater -->
+    <string name="home_update_title">มีเวอร์ชันใหม่ %1$s</string>
+    <string name="home_update_open">เปิดหน้า Release</string>
+    <string name="home_update_later">ไว้ก่อน</string>
+    <string name="home_update_checking">กำลังตรวจสอบ…</string>
+    <string name="home_update_latest">เป็นเวอร์ชันล่าสุดแล้ว</string>
+    <string name="home_update_failed">ตรวจสอบไม่สำเร็จ (เชื่อมต่อไม่ได้)</string>
+    <string name="home_update_no_browser">เปิดลิงก์ไม่ได้</string>
+</resources>

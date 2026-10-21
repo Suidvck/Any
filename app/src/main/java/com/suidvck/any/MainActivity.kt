@@ -1,6 +1,7 @@
 package com.suidvck.any
 
 import android.Manifest
+import android.app.DownloadManager
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -9,10 +10,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -40,6 +43,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.URLUtil
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -72,6 +76,32 @@ import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.suidvck.any.features.ai.AiMessage
+import com.suidvck.any.features.ai.AiPrompts
+import com.suidvck.any.features.browser.BrowserMenuSheet
+import com.suidvck.any.features.browser.FindBar
+import com.suidvck.any.features.browser.PageAssistant
+import com.suidvck.any.features.browser.WebTools
+import com.suidvck.any.features.chat.AttachmentPicker
+import com.suidvck.any.features.chat.ChatHistorySheet
+import com.suidvck.any.features.chat.VoiceMode
+import com.suidvck.any.features.data.AutomationStore
+import com.suidvck.any.features.data.ChatStore
+import com.suidvck.any.features.data.Conversation
+import com.suidvck.any.features.data.HistoryStore
+import com.suidvck.any.features.data.MiniApp
+import com.suidvck.any.features.data.MiniAppStore
+import com.suidvck.any.features.data.StoredMessage
+import com.suidvck.any.features.data.TabStore
+import com.suidvck.any.features.home.Appearance
+import com.suidvck.any.features.home.DockView
+import com.suidvck.any.features.home.Updater
+import com.suidvck.any.features.library.LibrarySheet
+import com.suidvck.any.features.library.RecentAppsRow
+import com.suidvck.any.features.system.AppLock
+import com.suidvck.any.features.system.AutomationScheduler
+import com.suidvck.any.features.system.AutomationSheet
+import com.suidvck.any.features.system.ExtrasMenu
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.ByteArrayInputStream
@@ -115,6 +145,25 @@ class MainActivity : AppCompatActivity() {
     private var greeted = false
     private var generating = false
     private val history = mutableListOf<Pair<String, String>>() // role to content, oldest first
+
+    // Extras (library, chats, browser tabs, voice, attachments).
+    private lateinit var miniApps: MiniAppStore
+    private lateinit var chatStore: ChatStore
+    private lateinit var browserTabs: TabStore
+    private lateinit var browserHistory: HistoryStore
+    private lateinit var voiceMode: VoiceMode
+    private lateinit var dockView: DockView
+    private var recentAppsRow: RecentAppsRow? = null
+    private var findBar: FindBar? = null
+    private var previewTools: LinearLayout? = null
+    private var currentAppId: String? = null
+    private var editMode = false
+    private var pendingImage: String? = null
+    private var editChip: TextView? = null
+    private var attachChip: TextView? = null
+    private var micChip: TextView? = null
+    private var handsFree = false
+    private var appUnlocked = false
 
     private data class Task(val host: String, val title: String)
 
@@ -171,7 +220,8 @@ class MainActivity : AppCompatActivity() {
 
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
-            if (customView != null) exitVideoFullscreen()
+            if (findBar?.isOpen() == true) findBar?.close()
+            else if (customView != null) exitVideoFullscreen()
             else if (sheetOpen) closeSheet()
             else if (overlayPanel?.isVisible == true) hideOverlay()
             else if (previewContainer.isVisible) hidePreview()
@@ -214,6 +264,23 @@ class MainActivity : AppCompatActivity() {
         playingDur = findViewById(R.id.playing_dur)
         btnPlayPause = findViewById(R.id.btn_playpause)
 
+        miniApps = MiniAppStore(this)
+        chatStore = ChatStore(this)
+        browserTabs = TabStore(this)
+        browserHistory = HistoryStore(this)
+        voiceMode = VoiceMode(this) { heard ->
+            if (!isFinishing) {
+                openSheet()
+                input.setText(heard)
+                sendMessage()
+            }
+        }
+        voiceMode.onSpeechDone = {
+            if (handsFree && sheetOpen && !generating) {
+                root.postDelayed({ voiceMode.startListening() }, 350L)
+            }
+        }
+
         hideStatusBar()
         setupWebView()
         adBlockEnabled = getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -227,24 +294,27 @@ class MainActivity : AppCompatActivity() {
             else clockFont
         ui.post(clockTick)
 
+        Appearance.applyTo(this)
+        setupChatExtras()
+        setupPreviewTools()
+        setupRecentApps()
+
         val previewFab: FloatingActionButton = findViewById(R.id.fab_chat_preview)
         val composeBox: TextView = findViewById(R.id.compose_box)
         val btnPrev: ImageButton = findViewById(R.id.btn_prev)
         val btnNext: ImageButton = findViewById(R.id.btn_next)
         val btnYt: View = findViewById(R.id.btn_yt)
-        val btnTiktok: ImageButton = findViewById(R.id.btn_tiktok)
-        val btnDiscord: ImageButton = findViewById(R.id.btn_discord)
-        val btnInstagram: ImageButton = findViewById(R.id.btn_instagram)
         val btnHome: ImageButton = findViewById(R.id.btn_home)
+        val btnMore: ImageButton = findViewById(R.id.btn_more)
+        val btnAttach: ImageButton = findViewById(R.id.btn_attach)
 
         previewFab.setOnClickListener { openSheet() }
         makeFabDraggable(previewFab)
         scrim.setOnClickListener { closeSheet() }
         sendButton.setOnClickListener { sendMessage() }
         composeBox.setOnClickListener { openSheet() }
-        btnTiktok.setOnClickListener { showPreview(url = "https://www.tiktok.com/") }
-        btnDiscord.setOnClickListener { showPreview(url = "https://discord.com/") }
-        btnInstagram.setOnClickListener { showPreview(url = "https://www.instagram.com/") }
+        btnAttach.setOnClickListener { AttachmentPicker.launch(this) }
+        btnMore.setOnClickListener { showExtras() }
         btnYt.setOnClickListener { showPreview(url = "https://www.youtube.com") }
         btnPlayPause.setOnClickListener {
             evalJs(PLAY_PAUSE_JS)
@@ -259,6 +329,17 @@ class MainActivity : AppCompatActivity() {
             ui.postDelayed({ pollOnce() }, 250)
         }
         btnHome.setOnClickListener { goHome() }
+
+        dockView = DockView(this)
+        findViewById<FrameLayout>(R.id.dock_host)?.addView(
+            dockView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.CENTER }
+        )
+        dockView.bind { item -> if (item.url.isNotBlank()) showPreview(url = item.url) }
+
         setupHomeSwipe()
 
         input.setOnEditorActionListener { _, actionId, _ ->
@@ -284,10 +365,28 @@ class MainActivity : AppCompatActivity() {
 
         renderRunning()
 
+        AutomationScheduler.rescheduleAll(this)
+        Updater.check(this, silent = true)
+
         // QA hooks: `--ez openChat true` opens the sheet; `--es autoPrompt "<text>"`
         // opens the sheet and sends that prompt automatically; `--ez voice true`
         // starts voice listening as if the chat ring was long-pressed.
         root.postDelayed({ handleQaExtras(intent) }, 450)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == AttachmentPicker.REQUEST_CODE) {
+            if (resultCode == RESULT_OK) {
+                val url = AttachmentPicker.read(this, data)
+                if (url == null) {
+                    Toast.makeText(this, "อ่านรูปไม่ได้", Toast.LENGTH_SHORT).show()
+                } else {
+                    setPendingImage(url)
+                }
+            }
+            return
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -304,6 +403,7 @@ class MainActivity : AppCompatActivity() {
         val openUrl = intent.getStringExtra("openUrl")
         val overlayHtml = intent.getStringExtra("overlayHtml")
         val navTest = intent.getStringExtra("navTest")
+        val openAppId = intent.getStringExtra("openAppId")
         val modelSearchBase = intent.getStringExtra("modelSearchBase")
         val runJs = intent.getStringExtra("runJs")
         val pipAction = intent.getStringExtra("pipAction")
@@ -321,6 +421,24 @@ class MainActivity : AppCompatActivity() {
             }
             !openUrl.isNullOrBlank() -> root.post { showPreview(url = openUrl) }
             !overlayHtml.isNullOrBlank() -> root.post { showOverlay(overlayHtml) }
+            !openAppId.isNullOrBlank() -> root.post { miniApps.get(openAppId)?.let { showApp(it) } }
+            intent.getBooleanExtra("openLibrary", false) -> root.post { openLibrary() }
+            intent.getBooleanExtra("chatHistory", false) -> root.post { openChatHistory() }
+            intent.getBooleanExtra("pageAssistant", false) -> root.post { openPageAssistant() }
+            intent.getBooleanExtra("findBar", false) -> root.post { toggleFindBar() }
+            intent.getBooleanExtra("editMode", false) -> root.post {
+                editMode = true
+                updateEditChip()
+                openSheet()
+            }
+            intent.getBooleanExtra("showExtras", false) -> root.post { showExtras() }
+            intent.getBooleanExtra("browserMenu", false) -> root.post { openBrowserMenu() }
+            intent.getBooleanExtra("showAutomations", false) -> root.post {
+                ensureNotificationPermission()
+                AutomationSheet.show(this)
+            }
+            intent.getBooleanExtra("appearanceMenu", false) -> root.post { Appearance.showSheet(this) }
+            intent.getBooleanExtra("checkUpdate", false) -> root.post { Updater.check(this, false) }
             intent.getBooleanExtra("showHome", false) -> root.post { hidePreview() }
             intent.getBooleanExtra("reopenLast", false) -> root.post { reopenLastPage() }
             intent.getBooleanExtra("openSettings", false) -> root.post { showSettings() }
@@ -334,6 +452,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!appUnlocked) {
+            if (AppLock.isEnabled(this)) {
+                root.alpha = 0f
+                AppLock.unlock(this) {
+                    appUnlocked = true
+                    root.alpha = 1f
+                }
+            } else {
+                appUnlocked = true
+            }
+        }
+        refreshRecentApps()
         evalJs("window.__anyForcePlay=false")
         evalJs(CLEAR_PIP_ZOOM_JS)
         if (hasContent) startVideoPolling()
@@ -354,10 +484,15 @@ class MainActivity : AppCompatActivity() {
         // Release the mic if the app goes fully hidden mid-listening.
         stopVoiceListening()
         clearVoiceBubble()
+        handsFree = false
+        if (::voiceMode.isInitialized) runCatching { voiceMode.stopListening() }
+        if (::chatStore.isInitialized) chatStore.saveAllNow()
     }
 
     override fun onDestroy() {
         stopVoiceListening()
+        if (::voiceMode.isInitialized) runCatching { voiceMode.release() }
+        if (::chatStore.isInitialized) chatStore.saveAllNow()
         super.onDestroy()
     }
 
@@ -375,6 +510,7 @@ class MainActivity : AppCompatActivity() {
             previewContainer.isVisible -> View.VISIBLE
             else -> View.GONE
         }
+        previewTools?.visibility = if (inPip) View.GONE else View.VISIBLE
         if (inPip) {
             // Don't let the overlay float inside the small PiP window.
             if (overlayPanel?.isVisible == true) {
@@ -436,6 +572,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
+        applyWebToolsPrefs()
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -450,6 +587,26 @@ class MainActivity : AppCompatActivity() {
             WebViewCompat.addDocumentStartJavaScript(webView, KEEP_ALIVE_JS, setOf("*"))
         }
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                val u = url ?: return
+                if (!u.startsWith("http") || u.contains(".anyapp.local")) return
+                browserTabs.open(u, null, null)
+                currentAppId = null
+                editMode = false
+                updateEditChip()
+                Log.d("AnyQA", "page start $u")
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val u = url ?: return
+                if (!u.startsWith("http") || u.contains(".anyapp.local")) return
+                val title = view?.title?.takeIf { it.isNotBlank() } ?: hostOf(u)
+                browserTabs.updateTitle(title.take(80))
+                browserHistory.record(u, title.take(120))
+            }
+
             // Keep every navigation inside the WebView; deep links (intent://, market://,
             // youtube:// …) are blocked so pages cannot bounce the user into other apps.
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
@@ -509,6 +666,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onHideCustomView() = exitVideoFullscreen()
+        }
+
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+            handleDownload(url, userAgent, contentDisposition, mimeType, contentLength)
         }
     }
 
@@ -687,7 +848,9 @@ class MainActivity : AppCompatActivity() {
         sheetContainer.isVisible = true
         if (!greeted) {
             greeted = true
-            addMessage(you = false, text = getString(R.string.greeting))
+            val conv = chatStore.current()
+            if (conv.messages.isNotEmpty()) renderConversation(conv)
+            else addMessage(you = false, text = getString(R.string.greeting))
         }
         chatPanel.post {
             chatPanel.translationY = chatPanel.height.toFloat()
@@ -707,6 +870,9 @@ class MainActivity : AppCompatActivity() {
         sheetOpen = false
         stopVoiceListening()
         clearVoiceBubble()
+        handsFree = false
+        micChip?.alpha = 0.5f
+        if (::voiceMode.isInitialized) voiceMode.stopListening()
         updateBack()
         chatPanel.animate()
             .translationY(chatPanel.height.toFloat())
@@ -833,22 +999,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendMessage() {
         val text = input.text.toString().trim()
-        if (text.isEmpty() || generating) return
-        input.setText("")
+        if ((text.isEmpty() && pendingImage == null) || generating) return
         // Typing /setting (or /settings) opens the AI settings dialog.
         if (text.equals("/setting", ignoreCase = true) || text.equals("/settings", ignoreCase = true)) {
+            input.setText("")
             showSettings()
             return
         }
         // Typing /clear wipes the whole conversation.
         if (text.equals("/clear", ignoreCase = true)) {
+            input.setText("")
             history.clear()
             messagesContainer.removeAllViews()
+            chatStore.clearCurrent()
+            setPendingImage(null)
+            greeted = true
             addMessage(you = false, text = getString(R.string.chat_cleared))
             return
         }
-        lastPrompt = text
-        addMessage(you = true, text = text)
 
         val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
         val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
@@ -859,40 +1027,86 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        input.setText("")
+        val image = pendingImage
+        setPendingImage(null)
+        val promptText = text.ifBlank { "อธิบายรูปนี้" }
+        lastPrompt = promptText
+        val shownText = if (image != null) "📎 [รูปภาพ] $promptText".trim() else promptText
+        addMessage(you = true, text = shownText)
+        chatStore.append(StoredMessage("user", promptText, image))
+        if (handsFree) voiceMode.stopListening()
+
+        // When editing a saved app, send its current HTML as extra system context.
+        val editApp = if (editMode) currentAppId?.let { miniApps.get(it) } else null
+        val systemExtra = editApp?.let { AiPrompts.editSystem(it.html) }
+
         generating = true
         sendButton.isEnabled = false
         sendButton.alpha = 0.5f
         val thinking = addMessage(you = false, text = getString(R.string.thinking))
-        history += "user" to text
+        val thinkingText = (thinking as ViewGroup).getChildAt(0) as TextView
+        history += "user" to promptText
         val maxContext = prefs.getInt("maxContext", DEFAULT_MAX_CONTEXT).coerceIn(2, 200)
         while (history.size > maxContext) history.removeAt(0)
 
-        AiClient.chat(base, key, model, history) { result ->
-            runOnUiThread {
-                if (isFinishing) return@runOnUiThread
+        val aiHistory = if (editApp != null) {
+            listOf(AiMessage("user", promptText, image))
+        } else {
+            history.mapIndexed { index, (role, content) ->
+                if (index == history.lastIndex && image != null) AiMessage(role, content, image)
+                else AiMessage(role, content)
+            }
+        }
+
+        AiClient.streamChat(
+            baseUrl = base,
+            apiKey = key,
+            model = model,
+            systemExtra = systemExtra,
+            history = aiHistory,
+            onDelta = { full ->
+                if (!isFinishing) {
+                    thinkingText.text = full.ifBlank { getString(R.string.thinking) }
+                    messagesScroll.post { messagesScroll.fullScroll(View.FOCUS_DOWN) }
+                }
+            },
+            onDone = { full ->
+                if (isFinishing) return@streamChat
                 generating = false
                 sendButton.isEnabled = true
                 sendButton.alpha = 1f
                 messagesContainer.removeView(thinking)
-                result.onSuccess { reply ->
-                    history += "assistant" to reply
-                    handleReply(reply)
-                }.onFailure { e ->
-                    addMessage(you = false, text = getString(R.string.error_prefix) + (e.message ?: "unknown error"))
+                if (full.isBlank()) {
+                    addMessage(you = false, text = getString(R.string.error_prefix) + "empty reply")
+                } else {
+                    history += "assistant" to full
+                    handleReply(full)
                 }
+            },
+            onError = { e ->
+                if (isFinishing) return@streamChat
+                generating = false
+                sendButton.isEnabled = true
+                sendButton.alpha = 1f
+                messagesContainer.removeView(thinking)
+                addMessage(you = false, text = getString(R.string.error_prefix) + (e.message ?: "unknown error"))
             }
-        }
+        )
+    }
+
+    /** Removes the HTML/overlay code blocks and OPEN_URL markers from a reply. */
+    private fun visiblePart(reply: String): String {
+        var visible = reply
+        codeBlockRegex.findAll(reply).forEach { visible = visible.replace(it.value, "") }
+        openUrlRegex.find(reply)?.let { visible = visible.replace(it.value, "") }
+        return visible.replace("**", "").replace("`", "").trim()
     }
 
     private fun handleReply(reply: String) {
         val urlMatch = openUrlRegex.find(reply)
         val codeMatches = codeBlockRegex.findAll(reply).toList()
-
-        var visible = reply
-        codeMatches.forEach { visible = visible.replace(it.value, "") }
-        urlMatch?.let { visible = visible.replace(it.value, "") }
-        visible = visible.replace("**", "").replace("`", "").trim()
-        if (visible.isNotEmpty()) addMessage(you = false, text = visible)
+        val visible = visiblePart(reply)
 
         val overlayMatch = codeMatches.firstOrNull {
             it.groupValues[1].equals("html-overlay", ignoreCase = true)
@@ -900,10 +1114,40 @@ class MainActivity : AppCompatActivity() {
         val overlayHtml = overlayMatch?.groupValues?.get(2)?.trim()
         val html = codeMatches.firstOrNull { it !== overlayMatch }?.groupValues?.get(2)?.trim()
         val url = urlMatch?.groupValues?.get(1)?.trimEnd(',', '.', ')', '"')
+
+        if (visible.isNotEmpty()) addMessage(you = false, text = visible)
+
         when {
             !overlayHtml.isNullOrEmpty() -> showOverlay(overlayHtml)
-            !html.isNullOrEmpty() -> showPreview(html = html)
+            !html.isNullOrEmpty() -> {
+                // Auto-save: a new reply creates an app, an edit updates the open app.
+                val editingId = if (editMode) currentAppId else null
+                val app = if (editingId != null) miniApps.save(html, id = editingId)
+                else miniApps.save(html)
+                refreshRecentApps()
+                showApp(app)
+            }
             url != null -> showPreview(url = url)
+        }
+
+        val display = visible.ifBlank {
+            when {
+                !html.isNullOrEmpty() ->
+                    if (editMode) "✅ อัปเดตแอพให้แล้ว" else "✅ สร้างแอพให้แล้ว"
+                url != null -> "✅ เปิดหน้าที่ขอให้แล้ว"
+                !overlayHtml.isNullOrEmpty() -> "✅ แสดงผลให้แล้ว"
+                else -> "✅ ดำเนินการแล้ว"
+            }
+        }
+        if (visible.isEmpty()) addMessage(you = false, text = display)
+        chatStore.append(StoredMessage("assistant", display))
+        chatStore.saveAllNow()
+
+        if (visible.isNotEmpty()) voiceMode.speak(visible)
+        if (handsFree && (!voiceMode.speakReplies || visible.isEmpty())) {
+            root.postDelayed({
+                if (handsFree && sheetOpen && !generating) voiceMode.startListening()
+            }, 420L)
         }
     }
 
@@ -1104,16 +1348,48 @@ class MainActivity : AppCompatActivity() {
     // ---------- Fullscreen preview ----------
 
     private fun showPreview(html: String? = null, url: String? = null) {
+        if (html != null) {
+            showApp(miniApps.save(html))
+            return
+        }
+        applyWebToolsPrefs()
+        currentAppId = null
+        editMode = false
+        updateEditChip()
         previewContainer.isVisible = true
         previewContainer.alpha = 0f
         previewContainer.animate().alpha(1f).setDuration(200).start()
         if (url != null) {
             addTask(hostOf(url), getString(R.string.loading_dots))
+            browserTabs.open(url, null, hostOf(url))
             webView.loadUrl(url)
-        } else {
-            addTask(HOST_MINIAPP, lastPrompt.ifBlank { "แอพใหม่" }.take(48))
-            webView.loadDataWithBaseURL("https://app.local/", html.orEmpty(), "text/html", "UTF-8", null)
         }
+        hasContent = true
+        renderRunning()
+        startVideoPolling()
+        updatePipState()
+        if (sheetOpen) closeSheet()
+        updateBack()
+    }
+
+    /** Opens a saved mini-app on its own origin so its localStorage stays isolated. */
+    private fun showApp(app: MiniApp) {
+        applyWebToolsPrefs()
+        currentAppId = app.id
+        updateEditChip()
+        previewContainer.isVisible = true
+        previewContainer.alpha = 0f
+        previewContainer.animate().alpha(1f).setDuration(200).start()
+        lastPrompt = app.name
+        addTask(HOST_MINIAPP, app.name.ifBlank { "แอพใหม่" }.take(48))
+        browserTabs.open(null, app.id, app.name)
+        webView.loadDataWithBaseURL(
+            miniApps.originFor(app.id),
+            app.html,
+            "text/html",
+            "UTF-8",
+            null
+        )
         hasContent = true
         renderRunning()
         startVideoPolling()
@@ -1156,6 +1432,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hidePreview() {
+        findBar?.close()
         webView.stopLoading()
         previewContainer.isVisible = false
         overlayPanel?.hide()
@@ -1379,6 +1656,377 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    // ---------- Extras wiring (library, chats, browser, voice) ----------
+
+    private fun applyWebToolsPrefs() {
+        if (!::webView.isInitialized) return
+        val p = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        WebTools.applyDesktopMode(webView, p.getBoolean("desktop_mode", false))
+        WebTools.applyForceDark(webView, p.getBoolean("force_dark", false))
+    }
+
+    private fun handleDownload(
+        url: String,
+        userAgent: String?,
+        contentDisposition: String?,
+        mimeType: String?,
+        contentLength: Long
+    ) {
+        runCatching {
+            val request = DownloadManager.Request(Uri.parse(url)).apply {
+                setMimeType(mimeType)
+                addRequestHeader("User-Agent", userAgent ?: webView.settings.userAgentString)
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setAllowedOverMetered(true)
+                setAllowedOverRoaming(true)
+            }
+            val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+            try {
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+            } catch (se: SecurityException) {
+                request.setDestinationInExternalFilesDir(
+                    this, Environment.DIRECTORY_DOWNLOADS, name
+                )
+            }
+            (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+            Toast.makeText(this, "กำลังดาวน์โหลด: $name", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "ดาวน์โหลดไม่สำเร็จ", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupPreviewTools() {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                topMargin = dp(12)
+                leftMargin = dp(12)
+            }
+        }
+        fun chip(label: String, action: () -> Unit): TextView = TextView(this).apply {
+            text = label
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(getColor(R.color.white))
+            background = roundedBg(0xCC17171B.toInt(), dp(19).toFloat())
+            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(8) }
+            contentDescription = label
+            setOnClickListener { action() }
+        }
+        row.addView(chip("☰") { openBrowserMenu() })
+        row.addView(chip("✨") { openPageAssistant() })
+        row.addView(chip("🔍") { toggleFindBar() })
+        previewContainer.addView(row)
+        previewTools = row
+    }
+
+    private fun toggleFindBar() {
+        if (!::webView.isInitialized || !previewContainer.isVisible) {
+            Toast.makeText(this, "เปิดหน้าเว็บก่อนแล้วลองอีกครั้ง", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val bar = findBar ?: FindBar(this).also {
+            it.attachTo(previewContainer, webView)
+            findBar = it
+        }
+        if (bar.isOpen()) bar.close() else bar.open()
+    }
+
+    private fun openPageAssistant() {
+        if (!::webView.isInitialized || !previewContainer.isVisible) return
+        PageAssistant.show(
+            activity = this,
+            webView = webView,
+            ask = { prompt, cb ->
+                val p = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val base = p.getString("base", AiClient.DEFAULT_BASE).orEmpty()
+                    .ifBlank { AiClient.DEFAULT_BASE }
+                val model = p.getString("model", AiClient.DEFAULT_MODEL).orEmpty()
+                    .ifBlank { AiClient.DEFAULT_MODEL }
+                val key = p.getString("key", "").orEmpty()
+                if (key.isBlank()) {
+                    cb(Result.failure(IllegalStateException("ยังไม่ได้ตั้งค่า API key (/setting)")))
+                } else {
+                    AiClient.chat(base, key, model, listOf("user" to prompt), cb)
+                }
+            },
+            showResult = { html -> showOverlay(html) }
+        )
+    }
+
+    private fun openBrowserMenu() {
+        BrowserMenuSheet.show(
+            this,
+            browserTabs,
+            browserHistory,
+            onLoad = { url, appId ->
+                if (!appId.isNullOrBlank()) openAppById(appId)
+                else if (!url.isNullOrBlank()) showPreview(url = url)
+            },
+            onCloseTab = { id ->
+                val next = browserTabs.close(id)
+                when {
+                    next == null -> hidePreview()
+                    !next.appId.isNullOrBlank() -> openAppById(next.appId)
+                    !next.url.isNullOrBlank() -> showPreview(url = next.url)
+                }
+            },
+            onChanged = {
+                applyWebToolsPrefs()
+                if (previewContainer.isVisible) webView.reload()
+            }
+        )
+    }
+
+    private fun openAppById(id: String) {
+        val app = miniApps.get(id)
+        if (app != null) showApp(app)
+        else Toast.makeText(this, "ไม่พบแอพนี้", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openLibrary() {
+        LibrarySheet.show(this, miniApps) { app -> showApp(app) }
+    }
+
+    private fun setupRecentApps() {
+        val host = findViewById<FrameLayout>(R.id.recent_apps_host) ?: return
+        val row = RecentAppsRow(this)
+        host.addView(
+            row,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64))
+        )
+        recentAppsRow = row
+        refreshRecentApps()
+    }
+
+    private fun refreshRecentApps() {
+        if (!::miniApps.isInitialized) return
+        val row = recentAppsRow ?: return
+        val host = findViewById<FrameLayout>(R.id.recent_apps_host) ?: return
+        host.visibility = if (miniApps.list().isEmpty()) View.GONE else View.VISIBLE
+        row.bind(miniApps, { app -> showApp(app) }, { openLibrary() })
+    }
+
+    private fun setupChatExtras() {
+        val inputRow = input.parent as? LinearLayout ?: return
+        val chatCol = inputRow.parent as? LinearLayout ?: return
+
+        val chipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
+        editChip = TextView(this).apply {
+            textSize = 12f
+            setTextColor(getColor(R.color.white))
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            visibility = View.GONE
+            setOnClickListener {
+                editMode = !editMode
+                updateEditChip()
+            }
+        }
+        attachChip = TextView(this).apply {
+            textSize = 12f
+            setTextColor(getColor(R.color.white))
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            visibility = View.GONE
+            setOnClickListener { setPendingImage(null) }
+        }
+        chipRow.addView(
+            editChip,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(8) }
+        )
+        chipRow.addView(
+            attachChip,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+        chatCol.addView(chipRow, chatCol.indexOfChild(inputRow))
+
+        micChip = TextView(this).apply {
+            text = "🎙"
+            textSize = 18f
+            gravity = Gravity.CENTER
+            alpha = 0.5f
+            contentDescription = "โหมดสนทนาด้วยเสียง"
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(48))
+            setOnClickListener { toggleHandsFree() }
+        }
+        inputRow.addView(micChip, inputRow.indexOfChild(input))
+        updateEditChip()
+    }
+
+    private fun toggleHandsFree() {
+        handsFree = !handsFree
+        micChip?.alpha = if (handsFree) 1f else 0.5f
+        if (handsFree) {
+            stopVoiceListening()
+            voiceMode.startListening()
+            Toast.makeText(this, "โหมดสนทนาด้วยเสียง: เปิด", Toast.LENGTH_SHORT).show()
+        } else {
+            voiceMode.stopListening()
+            Toast.makeText(this, "โหมดสนทนาด้วยเสียง: ปิด", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun renderConversation(conv: Conversation) {
+        messagesContainer.removeAllViews()
+        history.clear()
+        conv.messages.forEach { m ->
+            val cleaned = if (m.role == "assistant") visiblePart(m.text) else m.text
+            val label = when {
+                !m.imageDataUrl.isNullOrBlank() -> "📎 [รูปภาพ] ${m.text}"
+                m.role == "assistant" && cleaned.isBlank() -> "✅ ดำเนินการแล้ว"
+                else -> cleaned
+            }
+            addMessage(you = m.role == "user", text = label)
+            history += m.role to label
+        }
+        greeted = true
+        messagesScroll.post { messagesScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private fun startNewChat() {
+        chatStore.newConversation()
+        messagesContainer.removeAllViews()
+        history.clear()
+        greeted = true
+        addMessage(you = false, text = getString(R.string.greeting))
+    }
+
+    private fun openChatHistory() {
+        ChatHistorySheet.show(
+            this,
+            chatStore,
+            onPick = { conv ->
+                chatStore.select(conv.id)
+                renderConversation(chatStore.current())
+                openSheet()
+            },
+            onNew = {
+                startNewChat()
+                openSheet()
+            },
+            onDismiss = null
+        )
+    }
+
+    private fun updateEditChip() {
+        val chip = editChip ?: return
+        if (currentAppId == null) editMode = false
+        chip.visibility = if (currentAppId != null) View.VISIBLE else View.GONE
+        chip.text = if (editMode) "✏️ กำลังแก้แอพนี้ · แตะเพื่อปิด"
+        else "✏️ แตะเพื่อแก้แอพนี้ด้วยแชท"
+        chip.background = roundedBg(
+            if (editMode) 0xFF5F6CF5.toInt() else 0xFF23232B.toInt(),
+            dp(14).toFloat()
+        )
+    }
+
+    private fun setPendingImage(dataUrl: String?) {
+        pendingImage = dataUrl
+        val chip = attachChip ?: return
+        if (dataUrl.isNullOrBlank()) {
+            chip.text = ""
+            chip.visibility = View.GONE
+        } else {
+            chip.text = "🖼 แนบรูปแล้ว ✕"
+            chip.background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            chip.visibility = View.VISIBLE
+        }
+    }
+
+    private fun showExtras() {
+        ExtrasMenu.show(this) { key ->
+            when (key) {
+                "history" -> openChatHistory()
+                "library" -> openLibrary()
+                "tabs" -> openBrowserMenu()
+                "find" -> toggleFindBar()
+                "automations" -> {
+                    ensureNotificationPermission()
+                    AutomationSheet.show(this)
+                }
+                "appearance" -> Appearance.showSheet(this)
+                "voice" -> {
+                    val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    val on = !prefs.getBoolean("voice_tts", false)
+                    prefs.edit().putBoolean("voice_tts", on).apply()
+                    voiceMode.speakReplies = on
+                    Toast.makeText(
+                        this,
+                        if (on) "อ่านคำตอบเป็นเสียง: เปิด" else "อ่านคำตอบเป็นเสียง: ปิด",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                "lock" -> toggleAppLock()
+                "update" -> Updater.check(this, silent = false)
+                "about" -> showAbout()
+            }
+        }
+    }
+
+    /** Automation reminders need the Android 13+ notification runtime permission. */
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7001)
+        }
+    }
+
+    private fun toggleAppLock() {
+        val on = AppLock.isEnabled(this)
+        AlertDialog.Builder(this)
+            .setTitle("ล็อคแอพ")
+            .setMessage(
+                if (on) "ปิดการล็อคด้วยไบโอเมตริก?"
+                else "เปิดล็อค Any ด้วยลายนิ้วมือ/ใบหน้า/รหัสเครื่อง?"
+            )
+            .setPositiveButton(if (on) "ปิด" else "เปิด") { _, _ ->
+                AppLock.setEnabled(this, !on)
+                appUnlocked = true
+                Toast.makeText(
+                    this,
+                    if (on) "ปิดการล็อคแล้ว" else "เปิดการล็อคแล้ว",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showAbout() {
+        val version = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull().orEmpty()
+        AlertDialog.Builder(this)
+            .setTitle("Any")
+            .setMessage("เวอร์ชัน $version\nแอพแชทที่สร้างแอพให้คุณได้\n\n github.com/Suidvck/Any")
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun roundedBg(color: Int, radiusPx: Float): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = radiusPx
+        }
 
     // ---------- Settings dialog ----------
 
