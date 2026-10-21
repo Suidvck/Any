@@ -52,8 +52,9 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 
 ### Design
 - Edge-to-edge and truly full-screen — the status bar is always hidden.
-- Floating dark chat sheet: light AI bubbles, rose user bubbles, pill input with a circular send button.
-- Pixel-art home screen with a clock, running-tasks list, media controls, and a quick-launch dock.
+- Floating chat sheet with a home button: light AI bubbles, rose user bubbles, pill input with a circular send button.
+- Pixel-art home screen with a stacked clock, soft corner blobs (light and dark palettes), media controls, and a quick-launch dock.
+- Swipe right on the home screen to jump back to the last page you opened (AI mini-app or site); the home button in the chat sheet takes you back home.
 - The signature two-ring logo (app icon and floating button).
 
 ## How it works

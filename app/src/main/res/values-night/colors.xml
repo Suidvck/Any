@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home redesign (dark plum, per mockup) -->
+    <color name="home_bg">#141019</color>
+    <color name="clock_color">#D9C6FF</color>
+    <color name="control_bg">#2A2233</color>
+    <color name="control_icon">#D9C6FF</color>
+    <color name="play_bg">#C9A6FF</color>
+    <color name="play_icon">#2A1B3D</color>
+    <color name="home_text">#CBB6F5</color>
+    <color name="home_muted">#8D7FA6</color>
+    <color name="home_icon">#CBB6F5</color>
+    <color name="progress_track_home">#2E2538</color>
+    <color name="progress_fill_home">#C9A6FF</color>
+    <color name="media_pill_bg">#CC241D30</color>
+    <color name="yt_pill_bg">#241E2C</color>
+    <color name="yt_pill_text">#C9A6FF</color>
+    <color name="yt_pill_stroke">#26D9C6FF</color>
+    <color name="blob_one">#261B2E</color>
+    <color name="blob_two">#1D2233</color>
+    <color name="blob_three">#2B1E19</color>
+</resources>

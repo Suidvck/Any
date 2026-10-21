@@ -29,14 +29,25 @@
     <color name="green_dot">#3DDC84</color>
     <color name="progress_track">#2E2E38</color>
 
-    <!-- Home redesign (warm dark, per mockup) -->
-    <color name="home_bg">#2B2523</color>
-    <color name="control_bg">#3B3431</color>
-    <color name="control_icon">#F3EFEC</color>
-    <color name="home_text">#EAE5E2</color>
-    <color name="home_muted">#9A918B</color>
-    <color name="home_icon">#A39C96</color>
-    <color name="progress_track_home">#4A423E</color>
+    <!-- Home redesign (lavender light, per mockup) -->
+    <color name="home_bg">#FCFAFE</color>
+    <color name="clock_color">#5B2B9E</color>
+    <color name="control_bg">#FFFFFF</color>
+    <color name="control_icon">#5B2B9E</color>
+    <color name="play_bg">#6C3DAB</color>
+    <color name="play_icon">#FFFFFF</color>
+    <color name="home_text">#5B2B9E</color>
+    <color name="home_muted">#8A7CA0</color>
+    <color name="home_icon">#5B2B9E</color>
+    <color name="progress_track_home">#E7DCF5</color>
+    <color name="progress_fill_home">#5B2B9E</color>
+    <color name="media_pill_bg">#F0FFFFFF</color>
+    <color name="yt_pill_bg">#FFFFFF</color>
+    <color name="yt_pill_text">#5B2B9E</color>
+    <color name="yt_pill_stroke">#1F5B2B9E</color>
+    <color name="blob_one">#F2E4FB</color>
+    <color name="blob_two">#DDE9FA</color>
+    <color name="blob_three">#FBE8D9</color>
 
     <!-- Chat sheet redesign (warm) -->
     <color name="bubble_you">#9A7471</color>

@@ -11,6 +11,11 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <com.suidvck.any.HomeBackdropView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no" />
+
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
@@ -34,7 +39,7 @@
                     android:includeFontPadding="false"
                     android:lineSpacingMultiplier="0.8"
                     android:text="00&#10;00"
-                    android:textColor="@color/white"
+                    android:textColor="@color/clock_color"
                     android:textSize="148sp" />
 
                 <LinearLayout
@@ -67,8 +72,13 @@
                         android:id="@+id/media_controls"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:background="@drawable/bg_media_pill"
                         android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:paddingLeft="6dp"
+                        android:paddingTop="4dp"
+                        android:paddingRight="6dp"
+                        android:paddingBottom="4dp">
 
                         <ImageButton
                             android:id="@+id/btn_prev"
@@ -90,7 +100,8 @@
                             android:contentDescription="@string/now_playing"
                             android:padding="13dp"
                             android:scaleType="fitCenter"
-                            android:src="@drawable/ic_play" />
+                            android:src="@drawable/ic_play"
+                            android:tint="@color/play_icon" />
 
                         <ImageButton
                             android:id="@+id/btn_next"
@@ -126,14 +137,15 @@
                             android:layout_width="16dp"
                             android:layout_height="16dp"
                             android:importantForAccessibility="no"
-                            android:src="@drawable/ic_youtube" />
+                            android:src="@drawable/ic_youtube"
+                            android:tint="@color/yt_pill_text" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="7dp"
                             android:text="@string/youtube"
-                            android:textColor="@color/home_text"
+                            android:textColor="@color/yt_pill_text"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -195,11 +207,14 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackgroundBorderless"
+                        android:letterSpacing="0.1"
                         android:paddingTop="9dp"
                         android:paddingBottom="9dp"
                         android:text="@string/type_something"
+                        android:textAllCaps="true"
                         android:textColor="@color/home_text"
-                        android:textSize="13sp" />
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
 
                     <Space
                         android:layout_width="0dp"
@@ -311,12 +326,29 @@
             android:paddingRight="16dp"
             android:paddingBottom="14dp">
 
-            <View
-                android:layout_width="40dp"
-                android:layout_height="4dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_handle" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="34dp"
+                android:layout_marginTop="8dp">
+
+                <View
+                    android:layout_width="40dp"
+                    android:layout_height="4dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_handle" />
+
+                <ImageButton
+                    android:id="@+id/btn_home"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/home"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_home"
+                    android:tint="@color/label_on_dark" />
+            </FrameLayout>
 
             <ScrollView
                 android:id="@+id/messages_scroll"

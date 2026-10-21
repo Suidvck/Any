@@ -235,6 +235,7 @@ class MainActivity : AppCompatActivity() {
         val btnTiktok: ImageButton = findViewById(R.id.btn_tiktok)
         val btnDiscord: ImageButton = findViewById(R.id.btn_discord)
         val btnInstagram: ImageButton = findViewById(R.id.btn_instagram)
+        val btnHome: ImageButton = findViewById(R.id.btn_home)
 
         previewFab.setOnClickListener { openSheet() }
         makeFabDraggable(previewFab)
@@ -257,6 +258,8 @@ class MainActivity : AppCompatActivity() {
             evalJs(SEEK_FWD_JS)
             ui.postDelayed({ pollOnce() }, 250)
         }
+        btnHome.setOnClickListener { goHome() }
+        setupHomeSwipe()
 
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
@@ -319,6 +322,7 @@ class MainActivity : AppCompatActivity() {
             !openUrl.isNullOrBlank() -> root.post { showPreview(url = openUrl) }
             !overlayHtml.isNullOrBlank() -> root.post { showOverlay(overlayHtml) }
             intent.getBooleanExtra("showHome", false) -> root.post { hidePreview() }
+            intent.getBooleanExtra("reopenLast", false) -> root.post { reopenLastPage() }
             intent.getBooleanExtra("openSettings", false) -> root.post { showSettings() }
             !modelSearchBase.isNullOrBlank() -> root.post {
                 showModelPicker(modelSearchBase, intent.getStringExtra("modelSearchKey").orEmpty()) {}
@@ -1043,6 +1047,59 @@ class MainActivity : AppCompatActivity() {
           } catch (e) {}
         })();
     """.trimIndent()
+
+    // ---------- Home / preview switching ----------
+
+    /** Closes the chat and returns to the home screen from wherever the user is. */
+    private fun goHome() {
+        if (sheetOpen) closeSheet()
+        if (customView != null) exitVideoFullscreen()
+        if (previewContainer.isVisible) hidePreview()
+    }
+
+    /** Swipe right on the home screen re-opens the last page (AI mini-app or site). */
+    private fun setupHomeSwipe() {
+        var startX = 0f
+        var startY = 0f
+        var tracking = false
+        mainContent.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = ev.rawX
+                    startY = ev.rawY
+                    tracking = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> true
+                MotionEvent.ACTION_UP -> {
+                    if (tracking) {
+                        val dx = ev.rawX - startX
+                        val dy = ev.rawY - startY
+                        if (dx > dp(72) && dx > Math.abs(dy) * 1.4f) reopenLastPage()
+                    }
+                    tracking = false
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    tracking = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /** Brings the last opened page back on screen without reloading it. */
+    private fun reopenLastPage() {
+        if (!hasContent || !::webView.isInitialized) return
+        previewContainer.isVisible = true
+        previewContainer.alpha = 0f
+        previewContainer.animate().alpha(1f).setDuration(200).start()
+        startVideoPolling()
+        updatePipState()
+        updateBack()
+        Log.d("AnyQA", "reopen last page")
+    }
 
     // ---------- Fullscreen preview ----------
 
