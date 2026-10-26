@@ -3,13 +3,13 @@
     <!-- Chat history sheet (Agent-CHAT) -->
     <string name="chat_hist_title">ประวัติแชท</string>
     <string name="chat_hist_menu">ประวัติแชท</string>
-    <string name="chat_hist_new">+ แชทใหม่</string>
+    <string name="chat_hist_new">แชทใหม่</string>
     <string name="chat_hist_subtitle">แตะเพื่อเปิดบทสนทนา · กดค้างเพื่อแก้ไข</string>
     <string name="chat_hist_empty">ยังไม่มีประวัติแชท</string>
     <string name="chat_hist_empty_hint">เริ่มคุยกับ Any แล้วกลับมาดูที่นี่ได้เลย</string>
     <string name="chat_hist_untitled">แชทใหม่</string>
     <string name="chat_hist_no_message">ยังไม่มีข้อความ</string>
-    <string name="chat_hist_image">🖼️ รูปภาพ</string>
+    <string name="chat_hist_image">รูปภาพ</string>
     <string name="chat_hist_you">คุณ: %1$s</string>
     <string name="chat_hist_rename_title">แก้ไขแชท</string>
     <string name="chat_hist_rename_hint">ชื่อแชท</string>
@@ -24,7 +24,7 @@
     <string name="chat_attach_choose">เลือกรูปภาพ</string>
     <string name="chat_attach_unavailable">เปิดคลังรูปภาพไม่ได้ครับ</string>
     <string name="chat_attach_read_failed">อ่านรูปนี้ไม่ได้ครับ ลองเลือกรูปอื่น</string>
-    <string name="chat_attach_attached">🖼️ แนบรูปแล้ว — พิมพ์คำถามต่อได้เลย</string>
+    <string name="chat_attach_attached">แนบรูปแล้ว — พิมพ์คำถามต่อได้เลย</string>
 
     <!-- Voice mode (Agent-CHAT) -->
     <string name="chat_voice_tts_label">อ่านคำตอบด้วยเสียง</string>

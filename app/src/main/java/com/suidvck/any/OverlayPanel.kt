@@ -13,10 +13,11 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.suidvck.any.ui.FaIcons
 
 /**
  * Floating panel that renders AI-written "overlay" HTML on top of the preview
- * WebView. Drag it by the handle bar, close it with the ✕ button. This is an
+ * WebView. Drag it by the handle bar, close it with the x button. This is an
  * in-app overlay — it only ever shows inside Any, never on top of other apps.
  */
 @SuppressLint("SetJavaScriptEnabled")
@@ -55,17 +56,13 @@ class OverlayPanel(private val context: Context, private val parent: FrameLayout
             cornerRadius = dp(12).toFloat()
         }
         val grip = TextView(context)
-        grip.text = "⠿"
-        grip.textSize = 12f
-        grip.setTextColor(0x66FFFFFF)
+        FaIcons.setIcon(grip, "grip-lines", 11f, 0x66FFFFFF)
         grip.setPadding(dp(10), 0, dp(4), 0)
         bar.addView(grip)
         val spacer = View(context)
         bar.addView(spacer, LinearLayout.LayoutParams(0, dp(2), 1f))
         val close = TextView(context)
-        close.text = "✕"
-        close.textSize = 13f
-        close.setTextColor(0xCCFFFFFF.toInt())
+        FaIcons.setIcon(close, "xmark", 13f, 0xCCFFFFFF.toInt())
         close.gravity = Gravity.CENTER
         close.setPadding(dp(12), dp(4), dp(12), dp(4))
         close.setOnClickListener { hide() }

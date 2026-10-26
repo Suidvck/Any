@@ -8,7 +8,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
-import android.text.InputFilter
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
@@ -28,6 +27,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
 import com.suidvck.any.features.data.MiniApp
 import com.suidvck.any.features.data.MiniAppStore
+import com.suidvck.any.ui.FaIcons
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,7 +35,7 @@ import java.util.Locale
 /**
  * "แอพของฉัน" bottom sheet: every mini-app saved by [MiniAppStore].
  *
- * Tap a card to open the app, long-press to rename it (name + emoji) or delete it.
+ * Tap a card to open the app, long-press to rename it (name + Font Awesome icon) or delete it.
  */
 object LibrarySheet {
 
@@ -147,26 +147,84 @@ object LibrarySheet {
                 }
             )
 
-            val emojiInput = EditText(activity).apply {
-                setText(app.emoji)
-                hint = "อิโมจิ"
-                textSize = 18f
-                setTextColor(LIB_TEXT)
-                setHintTextColor(LIB_MUTED)
-                setSingleLine(true)
-                filters = arrayOf<InputFilter>(InputFilter.LengthFilter(12))
-                background = roundedBackground(LIB_FIELD_BG, dp(12).toFloat())
-                setPadding(dp(14), dp(11), dp(14), dp(11))
-                setSelection(text.length)
+            val currentIcon = FaIcons.resolve(app.icon)
+            var selectedIcon = currentIcon
+            val iconChoices = (listOf(currentIcon) + FaIcons.choices).distinct()
+            val choiceViews = ArrayList<TextView>()
+
+            fun renderChoices() {
+                choiceViews.forEachIndexed { index, view ->
+                    val iconName = iconChoices[index]
+                    val selected = iconName == selectedIcon
+                    FaIcons.setIcon(
+                        view,
+                        iconName,
+                        18f,
+                        if (selected) Color.WHITE else LIB_MUTED
+                    )
+                    view.background = rippleBackground(
+                        if (selected) LIB_BRAND else LIB_FIELD_BG,
+                        dp(12).toFloat(),
+                        0x33FFFFFF
+                    )
+                }
             }
+
             content.addView(
-                labelView(activity, "อิโมจิ"),
+                labelView(activity, "ไอคอน"),
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = dp(14)
                 }
             )
+            val iconGrid = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            val perRow = 6
+            iconChoices.chunked(perRow).forEachIndexed { rowIndex, rowIcons ->
+                val row = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                for (slot in 0 until perRow) {
+                    val iconName = rowIcons.getOrNull(slot)
+                    if (iconName == null) {
+                        row.addView(
+                            View(activity),
+                            LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                                marginEnd = if (slot == perRow - 1) 0 else dp(6)
+                            }
+                        )
+                        continue
+                    }
+                    val choice = TextView(activity).apply {
+                        gravity = Gravity.CENTER
+                        isClickable = true
+                        isFocusable = true
+                        contentDescription = "ไอคอน $iconName"
+                        layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                            marginEnd = if (slot == perRow - 1) 0 else dp(6)
+                        }
+                        setOnClickListener {
+                            selectedIcon = iconName
+                            renderChoices()
+                        }
+                    }
+                    choiceViews.add(choice)
+                    row.addView(choice)
+                }
+                iconGrid.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        if (rowIndex > 0) topMargin = dp(6)
+                    }
+                )
+            }
+            renderChoices()
             content.addView(
-                emojiInput,
+                iconGrid,
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = dp(6)
                 }
@@ -184,14 +242,13 @@ object LibrarySheet {
                 editDialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(LIB_ROSE)
                 editDialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
                     val newName = nameInput.text?.toString()?.trim().orEmpty()
-                    val newEmoji = emojiInput.text?.toString()?.trim().orEmpty()
                     if (newName.isEmpty()) {
                         nameInput.error = "ใส่ชื่อแอพก่อนนะ"
                         nameInput.requestFocus()
                         return@setOnClickListener
                     }
                     runCatching {
-                        store.rename(app.id, newName, newEmoji.ifEmpty { app.emoji.ifBlank { "🧩" } })
+                        store.rename(app.id, newName, selectedIcon)
                     }
                     editDialog.dismiss()
                     refresh()
@@ -331,6 +388,7 @@ private val LIB_FIELD_BG = 0xFF23232B.toInt()
 private val LIB_TEXT = 0xFFFFFFFF.toInt()
 private val LIB_MUTED = 0xFF9A9AA5.toInt()
 private val LIB_ROSE = 0xFFE2708A.toInt()
+private val LIB_BRAND = 0xFF5F6CF5.toInt()
 
 private fun roundedBackground(fill: Int, radiusPx: Float): GradientDrawable =
     GradientDrawable().apply {
@@ -374,13 +432,11 @@ private fun buildTile(
         }
     }
 
-    val emojiView = TextView(context).apply {
-        text = app.emoji.ifBlank { "🧩" }
-        textSize = 32f
+    val iconView = TextView(context).apply {
         gravity = Gravity.CENTER
-        setTextColor(LIB_TEXT)
     }
-    tile.addView(emojiView)
+    FaIcons.setIcon(iconView, FaIcons.resolve(app.icon), 32f, LIB_TEXT)
+    tile.addView(iconView)
 
     val nameView = TextView(context).apply {
         text = app.name.ifBlank { "ไม่มีชื่อ" }
@@ -424,9 +480,8 @@ private fun buildEmptyState(context: Context, dp: (Int) -> Int): View {
 
     box.addView(
         TextView(context).apply {
-            text = "🗂️"
-            textSize = 40f
             gravity = Gravity.CENTER
+            FaIcons.setIcon(this, "folder-open", 40f, LIB_MUTED)
         }
     )
     box.addView(

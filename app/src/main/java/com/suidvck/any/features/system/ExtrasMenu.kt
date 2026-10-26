@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.suidvck.any.R
+import com.suidvck.any.ui.FaIcons
 
 /**
  * "Extras" bottom sheet: a plain list of entry points. It contains no business
@@ -24,22 +25,22 @@ object ExtrasMenu {
 
     private data class Item(
         val key: String,
-        val emoji: String,
+        val icon: String,
         val title: Int,
         val subtitle: Int
     )
 
     private val items = listOf(
-        Item("history", "🕘", R.string.system_menu_history_title, R.string.system_menu_history_sub),
-        Item("library", "📦", R.string.system_menu_library_title, R.string.system_menu_library_sub),
-        Item("tabs", "🗂️", R.string.system_menu_tabs_title, R.string.system_menu_tabs_sub),
-        Item("find", "🔍", R.string.system_menu_find_title, R.string.system_menu_find_sub),
-        Item("automations", "⏰", R.string.system_menu_automations_title, R.string.system_menu_automations_sub),
-        Item("appearance", "🎨", R.string.system_menu_appearance_title, R.string.system_menu_appearance_sub),
-        Item("voice", "🔊", R.string.system_menu_voice_title, R.string.system_menu_voice_sub),
-        Item("lock", "🔒", R.string.system_menu_lock_title, R.string.system_menu_lock_sub),
-        Item("update", "⬆️", R.string.system_menu_update_title, R.string.system_menu_update_sub),
-        Item("about", "ℹ️", R.string.system_menu_about_title, R.string.system_menu_about_sub)
+        Item("history", "clock-rotate-left", R.string.system_menu_history_title, R.string.system_menu_history_sub),
+        Item("library", "layer-group", R.string.system_menu_library_title, R.string.system_menu_library_sub),
+        Item("tabs", "table-columns", R.string.system_menu_tabs_title, R.string.system_menu_tabs_sub),
+        Item("find", "magnifying-glass", R.string.system_menu_find_title, R.string.system_menu_find_sub),
+        Item("automations", "bell", R.string.system_menu_automations_title, R.string.system_menu_automations_sub),
+        Item("appearance", "palette", R.string.system_menu_appearance_title, R.string.system_menu_appearance_sub),
+        Item("voice", "volume-high", R.string.system_menu_voice_title, R.string.system_menu_voice_sub),
+        Item("lock", "lock", R.string.system_menu_lock_title, R.string.system_menu_lock_sub),
+        Item("update", "cloud-arrow-up", R.string.system_menu_update_title, R.string.system_menu_update_sub),
+        Item("about", "circle-info", R.string.system_menu_about_title, R.string.system_menu_about_sub)
     )
 
     fun show(activity: Activity, onPick: (String) -> Unit) {
@@ -90,16 +91,18 @@ object ExtrasMenu {
                 contentDescription = "$title, $subtitle"
             }
 
-            val emoji = TextView(activity).apply {
-                text = item.emoji
-                textSize = 19f
+            val icon = TextView(activity).apply {
                 gravity = Gravity.CENTER
                 setBackgroundResource(R.drawable.system_emoji_bg)
-                setTextColor(ContextCompat.getColor(activity, R.color.system_text))
-                includeFontPadding = false
+                FaIcons.setIcon(
+                    this,
+                    item.icon,
+                    19f,
+                    ContextCompat.getColor(activity, R.color.system_text)
+                )
             }
             row.addView(
-                emoji,
+                icon,
                 LinearLayout.LayoutParams(dp(activity, 40), dp(activity, 40))
             )
 
@@ -140,11 +143,14 @@ object ExtrasMenu {
 
             row.addView(
                 TextView(activity).apply {
-                    text = "›"
-                    textSize = 20f
                     alpha = 0.55f
-                    setTextColor(ContextCompat.getColor(activity, R.color.system_muted))
-                    includeFontPadding = false
+                    gravity = Gravity.CENTER
+                    FaIcons.setIcon(
+                        this,
+                        "chevron-right",
+                        14f,
+                        ContextCompat.getColor(activity, R.color.system_muted)
+                    )
                 },
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,

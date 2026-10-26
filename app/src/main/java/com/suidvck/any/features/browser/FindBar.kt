@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.suidvck.any.R
+import com.suidvck.any.ui.FaIcons
 
 /**
  * Floating "find on page" bar for the preview WebView.
@@ -103,17 +104,17 @@ class FindBar @JvmOverloads constructor(
         addView(counter, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)))
 
         addView(
-            navButton("↑", context.getString(R.string.webtools_find_prev)) {
+            navButton("arrow-up", context.getString(R.string.webtools_find_prev)) {
                 webView?.let { WebTools.findNext(it, false) }
             }
         )
         addView(
-            navButton("↓", context.getString(R.string.webtools_find_next)) {
+            navButton("arrow-down", context.getString(R.string.webtools_find_next)) {
                 webView?.let { WebTools.findNext(it, true) }
             }
         )
         addView(
-            navButton("✕", context.getString(R.string.webtools_close), close = true) {
+            navButton("xmark", context.getString(R.string.webtools_close), close = true) {
                 close()
             }
         )
@@ -229,15 +230,18 @@ class FindBar @JvmOverloads constructor(
     }
 
     private fun navButton(
-        glyph: String,
+        icon: String,
         description: String,
         close: Boolean = false,
         onClick: () -> Unit
     ): TextView = TextView(context).apply {
-        text = glyph
-        textSize = if (close) 15f else 18f
+        FaIcons.setIcon(
+            this,
+            icon,
+            if (close) 14f else 13f,
+            if (close) 0xFFC7C7D2.toInt() else 0xFFE6E6EE.toInt()
+        )
         gravity = Gravity.CENTER
-        setTextColor(if (close) 0xFFC7C7D2.toInt() else 0xFFE6E6EE.toInt())
         contentDescription = description
         isClickable = true
         isFocusable = true

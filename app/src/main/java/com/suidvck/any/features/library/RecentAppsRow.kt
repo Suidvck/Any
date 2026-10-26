@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.suidvck.any.features.data.MiniApp
 import com.suidvck.any.features.data.MiniAppStore
+import com.suidvck.any.ui.FaIcons
 import java.util.WeakHashMap
 
 /**
@@ -89,10 +90,7 @@ class RecentAppsRow @JvmOverloads constructor(
         val chip = baseChip()
         chip.contentDescription = "เปิดรายการแอพทั้งหมด"
 
-        val icon = TextView(context).apply {
-            text = "🗂️"
-            textSize = 17f
-        }
+        val icon = FaIcons.make(context, "folder-open", 17f, BRAND_LIGHT)
         val label = TextView(context).apply {
             text = "ทั้งหมด"
             textSize = 13f
@@ -116,10 +114,7 @@ class RecentAppsRow @JvmOverloads constructor(
         val chip = baseChip()
         chip.contentDescription = "เปิดแอพ ${app.name}"
 
-        val emoji = TextView(context).apply {
-            text = app.emoji.ifBlank { "🧩" }
-            textSize = 18f
-        }
+        val icon = FaIcons.make(context, FaIcons.resolve(app.icon), 18f, CHIP_TEXT)
         val name = TextView(context).apply {
             text = clipName(app.name)
             textSize = 13f
@@ -127,7 +122,7 @@ class RecentAppsRow @JvmOverloads constructor(
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
-        chip.addView(emoji)
+        chip.addView(icon)
         chip.addView(
             name,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {

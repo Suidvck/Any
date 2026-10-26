@@ -32,6 +32,7 @@ import com.suidvck.any.features.data.HistoryEntry
 import com.suidvck.any.features.data.HistoryStore
 import com.suidvck.any.features.data.TabEntry
 import com.suidvck.any.features.data.TabStore
+import com.suidvck.any.ui.FaIcons
 
 /*
  * Browser menu sheet: tabs / history / bookmarks plus the desktop-mode and
@@ -210,7 +211,7 @@ private class BrowserSheet(
         column.addView(subtitleView, LinearLayout.LayoutParams(MP, WC))
 
         row.addView(column, LinearLayout.LayoutParams(0, WC, 1f))
-        row.addView(iconButton("✕", TEXT_MUTED, 38) { dismiss() })
+        row.addView(iconButton("xmark", TEXT_MUTED, 38) { dismiss() })
         return row
     }
 
@@ -498,7 +499,7 @@ private class BrowserSheet(
         bookmarkCount.text = "${items.size} รายการ"
 
         if (items.isEmpty()) {
-            bookmarkList.addView(emptyView("ยังไม่มีบุ๊กมาร์ก · แตะ ☆ ในประวัติเพื่อบันทึก"))
+            bookmarkList.addView(emptyView("ยังไม่มีบุ๊กมาร์ก · แตะรูปดาวในประวัติเพื่อบันทึก"))
         } else {
             for (entry in items) bookmarkList.addView(historyRow(entry))
         }
@@ -521,7 +522,7 @@ private class BrowserSheet(
     // ---------- rows ----------
 
     private fun tabRow(entry: TabEntry, current: Boolean): View {
-        val close = iconButton("✕", TEXT_MUTED) {
+        val close = iconButton("xmark", TEXT_MUTED) {
             try {
                 onCloseTab(entry.id)
             } catch (_: Throwable) {
@@ -551,7 +552,11 @@ private class BrowserSheet(
 
     private fun historyRow(entry: HistoryEntry): View {
         val starred = entry.bookmarked
-        val star = iconButton(if (starred) "★" else "☆", if (starred) STAR_ON else TEXT_MUTED) {
+        val star = iconButton(
+            "star",
+            if (starred) STAR_ON else TEXT_MUTED,
+            regular = !starred
+        ) {
             try {
                 history.toggleBookmark(entry.url)
             } catch (_: Throwable) {
@@ -638,14 +643,13 @@ private class BrowserSheet(
     }
 
     private fun iconButton(
-        label: String,
+        icon: String,
         color: Int,
         sizeDp: Int = 34,
+        regular: Boolean = false,
         onClick: () -> Unit
     ): TextView = TextView(activity).apply {
-        text = label
-        textSize = 15f
-        setTextColor(color)
+        FaIcons.setIcon(this, icon, 15f, color, regular)
         gravity = Gravity.CENTER
         isClickable = true
         isFocusable = true

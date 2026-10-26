@@ -10,7 +10,7 @@ import org.json.JSONObject
 data class MiniApp(
     val id: String,
     val name: String,
-    val emoji: String,
+    val icon: String,
     val html: String,
     val createdAt: Long,
     val updatedAt: Long
@@ -45,7 +45,7 @@ class MiniAppStore(context: Context) {
     fun save(
         html: String,
         name: String? = null,
-        emoji: String? = null,
+        icon: String? = null,
         id: String? = null
     ): MiniApp = synchronized(lock) {
         ensureLoaded()
@@ -56,11 +56,11 @@ class MiniAppStore(context: Context) {
         val finalName = name?.trim()?.takeIf { it.isNotEmpty() }
             ?: existing?.name
             ?: suggestName(html, DEFAULT_NAME)
-        val finalEmoji = emoji?.trim()?.takeIf { it.isNotEmpty() }
-            ?: existing?.emoji
-            ?: suggestEmoji(html)
+        val finalIcon = icon?.trim()?.takeIf { it.isNotEmpty() }
+            ?: existing?.icon
+            ?: suggestIcon(html)
         val finalCreatedAt = existing?.createdAt ?: now
-        val app = MiniApp(finalId, finalName, finalEmoji, html, finalCreatedAt, now)
+        val app = MiniApp(finalId, finalName, finalIcon, html, finalCreatedAt, now)
 
         // Write the HTML first, then publish the index entry so a failed index write never
         // leaves a half-written page behind.
@@ -72,17 +72,17 @@ class MiniAppStore(context: Context) {
         app
     }
 
-    fun rename(id: String, name: String, emoji: String) {
+    fun rename(id: String, name: String, icon: String) {
         synchronized(lock) {
             ensureLoaded()
             val index = apps.indexOfFirst { it.id == id }
             if (index >= 0) {
                 val old = apps[index]
                 val newName = name.trim().ifEmpty { old.name }
-                val newEmoji = emoji.trim().ifEmpty { old.emoji }
+                val newIcon = icon.trim().ifEmpty { old.icon }
                 apps[index] = old.copy(
                     name = newName,
-                    emoji = newEmoji,
+                    icon = newIcon,
                     updatedAt = System.currentTimeMillis()
                 )
                 persistLocked()
@@ -110,13 +110,13 @@ class MiniAppStore(context: Context) {
 
     fun suggestName(html: String, fallback: String): String = rawTitle(html) ?: fallback
 
-    fun suggestEmoji(html: String): String {
+    fun suggestIcon(html: String): String {
         val title = rawTitle(html).orEmpty()
         val sample = (title + "\n" + html.take(6000)).lowercase(Locale.ROOT)
-        for ((keywords, emoji) in emojiRules) {
-            if (keywords.any { sample.contains(it) }) return emoji
+        for ((keywords, icon) in iconRules) {
+            if (keywords.any { sample.contains(it) }) return icon
         }
-        return DEFAULT_EMOJI
+        return DEFAULT_ICON
     }
 
     private fun ensureLoaded() {
@@ -129,11 +129,15 @@ class MiniAppStore(context: Context) {
             val id = obj.optString("id").trim()
             if (id.isEmpty() || apps.any { it.id == id }) continue
             val name = obj.optString("name").trim().ifEmpty { DEFAULT_NAME }
-            val emoji = obj.optString("emoji").trim().ifEmpty { DEFAULT_EMOJI }
+            // v1.2 and earlier wrote an emoji under "emoji"; v1.3+ writes an
+            // icon name under "icon". Keep reading both so saved apps survive.
+            val icon = obj.optString("icon").trim()
+                .ifEmpty { obj.optString("emoji").trim() }
+                .ifEmpty { DEFAULT_ICON }
             val createdAt = obj.optLong("createdAt", 0L).takeIf { it > 0L }
                 ?: System.currentTimeMillis()
             val updatedAt = obj.optLong("updatedAt", createdAt).takeIf { it > 0L } ?: createdAt
-            apps.add(MiniApp(id, name, emoji, "", createdAt, updatedAt))
+            apps.add(MiniApp(id, name, icon, "", createdAt, updatedAt))
         }
     }
 
@@ -144,7 +148,7 @@ class MiniAppStore(context: Context) {
                 JSONObject()
                     .put("id", app.id)
                     .put("name", app.name)
-                    .put("emoji", app.emoji)
+                    .put("icon", app.icon)
                     .put("createdAt", app.createdAt)
                     .put("updatedAt", app.updatedAt)
             )
@@ -197,37 +201,37 @@ class MiniAppStore(context: Context) {
 
     private companion object {
         const val DEFAULT_NAME = "แอพใหม่"
-        const val DEFAULT_EMOJI = "🧩"
+        const val DEFAULT_ICON = "cube"
 
         val TITLE_REGEX = Regex("<title\\b[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
         val TAG_REGEX = Regex("<[^>]+>")
         val WHITESPACE_REGEX = Regex("\\s+")
         val UNSAFE_FILE_CHARS = Regex("[^A-Za-z0-9._-]")
 
-        val emojiRules: List<Pair<List<String>, String>> = listOf(
-            listOf("calculator", "เครื่องคิดเลข", "คำนวณ") to "🧮",
-            listOf("todo", "to-do", "task list", "checklist", "รายการงาน", "งานที่ต้อง") to "✅",
-            listOf("calendar", "ปฏิทิน", "ตารางนัด") to "📅",
-            listOf("timer", "stopwatch", "pomodoro", "นาฬิกาจับเวลา") to "⏱️",
-            listOf("clock", "นาฬิกา", "world time", "เวลาโลก") to "🕒",
-            listOf("weather", "พยากรณ์", "อุณหภูมิ", "อากาศ") to "⛅",
-            listOf("music", "เพลง", "spotify", "soundcloud", "song") to "🎵",
-            listOf("movie", "film", "หนัง", "video player", "youtube") to "🎬",
-            listOf("camera", "กล้อง", "photo", "รูปภาพ") to "📷",
-            listOf("note", "memo", "โน้ต", "จดบันทึก", "journal", "diary") to "📝",
-            listOf("chatgpt", "openai", "gpt", "ปัญญาประดิษฐ์", "ai assistant") to "🤖",
-            listOf("chat", "แชท", "แชต", "messenger") to "💬",
-            listOf("money", "finance", "budget", "การเงิน", "ลงทุน", "crypto", "stock") to "💰",
-            listOf("shop", "store", "ร้านค้า", "ecommerce", "cart", "สินค้า") to "🛍️",
-            listOf("map", "แผนที่", "travel", "เที่ยว", "นำทาง") to "🗺️",
-            listOf("game", "เกม", "arcade", "puzzle") to "🎮",
-            listOf("quiz", "trivia", "แบบทดสอบ", "คำถาม") to "🧠",
-            listOf("fitness", "workout", "gym", "ออกกำลัง", "สุขภาพ") to "💪",
-            listOf("food", "อาหาร", "recipe", "สูตรอาหาร", "เมนู") to "🍔",
-            listOf("translate", "แปลภาษา", "language") to "🌐",
-            listOf("email", "mail", "อีเมล", "inbox") to "✉️",
-            listOf("chart", "graph", "dashboard", "สถิติ", "กราฟ") to "📊",
-            listOf("dice", "สุ่ม", "random") to "🎲"
+        val iconRules: List<Pair<List<String>, String>> = listOf(
+            listOf("calculator", "เครื่องคิดเลข", "คำนวณ") to "calculator",
+            listOf("todo", "to-do", "task list", "checklist", "รายการงาน", "งานที่ต้อง") to "list-check",
+            listOf("calendar", "ปฏิทิน", "ตารางนัด") to "calendar-days",
+            listOf("timer", "stopwatch", "pomodoro", "นาฬิกาจับเวลา") to "stopwatch",
+            listOf("clock", "นาฬิกา", "world time", "เวลาโลก") to "clock",
+            listOf("weather", "พยากรณ์", "อุณหภูมิ", "อากาศ") to "cloud-sun",
+            listOf("music", "เพลง", "spotify", "soundcloud", "song") to "music",
+            listOf("movie", "film", "หนัง", "video player", "youtube") to "film",
+            listOf("camera", "กล้อง", "photo", "รูปภาพ") to "camera",
+            listOf("note", "memo", "โน้ต", "จดบันทึก", "journal", "diary") to "note-sticky",
+            listOf("chatgpt", "openai", "gpt", "ปัญญาประดิษฐ์", "ai assistant") to "robot",
+            listOf("chat", "แชท", "แชต", "messenger") to "comment",
+            listOf("money", "finance", "budget", "การเงิน", "ลงทุน", "crypto", "stock") to "sack-dollar",
+            listOf("shop", "store", "ร้านค้า", "ecommerce", "cart", "สินค้า") to "bag-shopping",
+            listOf("map", "แผนที่", "travel", "เที่ยว", "นำทาง") to "map",
+            listOf("game", "เกม", "arcade", "puzzle") to "gamepad",
+            listOf("quiz", "trivia", "แบบทดสอบ", "คำถาม") to "brain",
+            listOf("fitness", "workout", "gym", "ออกกำลัง", "สุขภาพ") to "dumbbell",
+            listOf("food", "อาหาร", "recipe", "สูตรอาหาร", "เมนู") to "burger",
+            listOf("translate", "แปลภาษา", "language") to "language",
+            listOf("email", "mail", "อีเมล", "inbox") to "envelope",
+            listOf("chart", "graph", "dashboard", "สถิติ", "กราฟ") to "chart-line",
+            listOf("dice", "สุ่ม", "random") to "dice"
         )
     }
 }

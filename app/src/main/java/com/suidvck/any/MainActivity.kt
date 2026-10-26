@@ -102,6 +102,7 @@ import com.suidvck.any.features.system.AppLock
 import com.suidvck.any.features.system.AutomationScheduler
 import com.suidvck.any.features.system.AutomationSheet
 import com.suidvck.any.features.system.ExtrasMenu
+import com.suidvck.any.ui.FaIcons
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.ByteArrayInputStream
@@ -155,7 +156,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dockView: DockView
     private var recentAppsRow: RecentAppsRow? = null
     private var findBar: FindBar? = null
-    private var previewTools: LinearLayout? = null
+    private var webToolsRow: LinearLayout? = null
     private var currentAppId: String? = null
     private var editMode = false
     private var pendingImage: String? = null
@@ -296,7 +297,6 @@ class MainActivity : AppCompatActivity() {
 
         Appearance.applyTo(this)
         setupChatExtras()
-        setupPreviewTools()
         setupRecentApps()
 
         val previewFab: FloatingActionButton = findViewById(R.id.fab_chat_preview)
@@ -510,7 +510,7 @@ class MainActivity : AppCompatActivity() {
             previewContainer.isVisible -> View.VISIBLE
             else -> View.GONE
         }
-        previewTools?.visibility = if (inPip) View.GONE else View.VISIBLE
+        updateWebToolsVisibility()
         if (inPip) {
             // Don't let the overlay float inside the small PiP window.
             if (overlayPanel?.isVisible == true) {
@@ -846,6 +846,7 @@ class MainActivity : AppCompatActivity() {
         sheetOpen = true
         updateBack()
         sheetContainer.isVisible = true
+        updateWebToolsVisibility()
         if (!greeted) {
             greeted = true
             val conv = chatStore.current()
@@ -938,7 +939,7 @@ class MainActivity : AppCompatActivity() {
                 val heard = partialResults
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
-                if (!heard.isNullOrBlank()) setVoiceBubbleText("🎤 $heard")
+                if (!heard.isNullOrBlank()) setVoiceBubbleText(heard)
             }
 
             override fun onResults(results: Bundle?) {
@@ -1032,7 +1033,7 @@ class MainActivity : AppCompatActivity() {
         setPendingImage(null)
         val promptText = text.ifBlank { "อธิบายรูปนี้" }
         lastPrompt = promptText
-        val shownText = if (image != null) "📎 [รูปภาพ] $promptText".trim() else promptText
+        val shownText = if (image != null) "[รูปภาพ] $promptText".trim() else promptText
         addMessage(you = true, text = shownText)
         chatStore.append(StoredMessage("user", promptText, image))
         if (handsFree) voiceMode.stopListening()
@@ -1133,10 +1134,10 @@ class MainActivity : AppCompatActivity() {
         val display = visible.ifBlank {
             when {
                 !html.isNullOrEmpty() ->
-                    if (editMode) "✅ อัปเดตแอพให้แล้ว" else "✅ สร้างแอพให้แล้ว"
-                url != null -> "✅ เปิดหน้าที่ขอให้แล้ว"
-                !overlayHtml.isNullOrEmpty() -> "✅ แสดงผลให้แล้ว"
-                else -> "✅ ดำเนินการแล้ว"
+                    if (editMode) "อัปเดตแอพให้แล้ว" else "สร้างแอพให้แล้ว"
+                url != null -> "เปิดหน้าที่ขอให้แล้ว"
+                !overlayHtml.isNullOrEmpty() -> "แสดงผลให้แล้ว"
+                else -> "ดำเนินการแล้ว"
             }
         }
         if (visible.isEmpty()) addMessage(you = false, text = display)
@@ -1342,6 +1343,7 @@ class MainActivity : AppCompatActivity() {
         startVideoPolling()
         updatePipState()
         updateBack()
+        updateWebToolsVisibility()
         Log.d("AnyQA", "reopen last page")
     }
 
@@ -1370,6 +1372,7 @@ class MainActivity : AppCompatActivity() {
         updatePipState()
         if (sheetOpen) closeSheet()
         updateBack()
+        updateWebToolsVisibility()
     }
 
     /** Opens a saved mini-app on its own origin so its localStorage stays isolated. */
@@ -1396,6 +1399,7 @@ class MainActivity : AppCompatActivity() {
         updatePipState()
         if (sheetOpen) closeSheet()
         updateBack()
+        updateWebToolsVisibility()
     }
 
     // ---------- Floating AI overlays ----------
@@ -1414,6 +1418,7 @@ class MainActivity : AppCompatActivity() {
         placeOverlay(aboveAll = customView != null)
         if (sheetOpen) closeSheet()
         updateBack()
+        updateWebToolsVisibility()
         Log.d("AnyQA", "overlay bytes=${html.length}")
     }
 
@@ -1438,6 +1443,7 @@ class MainActivity : AppCompatActivity() {
         overlayPanel?.hide()
         updatePipState()
         updateBack()
+        updateWebToolsVisibility()
     }
 
     private fun updateBack() {
@@ -1696,35 +1702,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupPreviewTools() {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                topMargin = dp(12)
-                leftMargin = dp(12)
-            }
-        }
-        fun chip(label: String, action: () -> Unit): TextView = TextView(this).apply {
-            text = label
-            textSize = 16f
-            gravity = Gravity.CENTER
-            setTextColor(getColor(R.color.white))
-            background = roundedBg(0xCC17171B.toInt(), dp(19).toFloat())
-            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(8) }
-            contentDescription = label
-            setOnClickListener { action() }
-        }
-        row.addView(chip("☰") { openBrowserMenu() })
-        row.addView(chip("✨") { openPageAssistant() })
-        row.addView(chip("🔍") { toggleFindBar() })
-        previewContainer.addView(row)
-        previewTools = row
-    }
-
     private fun toggleFindBar() {
         if (!::webView.isInitialized || !previewContainer.isVisible) {
             Toast.makeText(this, "เปิดหน้าเว็บก่อนแล้วลองอีกครั้ง", Toast.LENGTH_SHORT).show()
@@ -1816,6 +1793,51 @@ class MainActivity : AppCompatActivity() {
         val inputRow = input.parent as? LinearLayout ?: return
         val chatCol = inputRow.parent as? LinearLayout ?: return
 
+        val webRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(4) }
+        }
+        fun webChip(icon: String, label: String, action: () -> Unit): TextView =
+            TextView(this).apply {
+                text = FaIcons.labeled(this@MainActivity, icon, label)
+                textSize = 12f
+                setTextColor(getColor(R.color.label_on_dark))
+                gravity = Gravity.CENTER
+                setPadding(dp(11), dp(7), dp(11), dp(7))
+                background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+                isClickable = true
+                isFocusable = true
+                contentDescription = label
+                setOnClickListener { action() }
+            }
+        webRow.addView(
+            webChip("table-columns", "แท็บ") { openBrowserMenu() },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(6) }
+        )
+        webRow.addView(
+            webChip("wand-magic-sparkles", "ผู้ช่วย") { openPageAssistant() },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(6) }
+        )
+        webRow.addView(
+            webChip("magnifying-glass", "ค้นหา") { toggleFindBar() },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+        webToolsRow = webRow
+
         val chipRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1855,19 +1877,26 @@ class MainActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
+        chatCol.addView(webRow, chatCol.indexOfChild(inputRow))
         chatCol.addView(chipRow, chatCol.indexOfChild(inputRow))
 
         micChip = TextView(this).apply {
-            text = "🎙"
-            textSize = 18f
             gravity = Gravity.CENTER
             alpha = 0.5f
             contentDescription = "โหมดสนทนาด้วยเสียง"
             layoutParams = LinearLayout.LayoutParams(dp(36), dp(48))
+            FaIcons.setIcon(this, "microphone", 18f, getColor(R.color.label_on_dark))
             setOnClickListener { toggleHandsFree() }
         }
         inputRow.addView(micChip, inputRow.indexOfChild(input))
         updateEditChip()
+        updateWebToolsVisibility()
+    }
+
+    /** Page tools live inside the chat panel and only appear while a page is open. */
+    private fun updateWebToolsVisibility() {
+        val show = previewContainer.isVisible && !isInPictureInPictureMode
+        webToolsRow?.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun toggleHandsFree() {
@@ -1889,8 +1918,8 @@ class MainActivity : AppCompatActivity() {
         conv.messages.forEach { m ->
             val cleaned = if (m.role == "assistant") visiblePart(m.text) else m.text
             val label = when {
-                !m.imageDataUrl.isNullOrBlank() -> "📎 [รูปภาพ] ${m.text}"
-                m.role == "assistant" && cleaned.isBlank() -> "✅ ดำเนินการแล้ว"
+                !m.imageDataUrl.isNullOrBlank() -> "[รูปภาพ] ${m.text}"
+                m.role == "assistant" && cleaned.isBlank() -> "ดำเนินการแล้ว"
                 else -> cleaned
             }
             addMessage(you = m.role == "user", text = label)
@@ -1929,8 +1958,8 @@ class MainActivity : AppCompatActivity() {
         val chip = editChip ?: return
         if (currentAppId == null) editMode = false
         chip.visibility = if (currentAppId != null) View.VISIBLE else View.GONE
-        chip.text = if (editMode) "✏️ กำลังแก้แอพนี้ · แตะเพื่อปิด"
-        else "✏️ แตะเพื่อแก้แอพนี้ด้วยแชท"
+        chip.text = if (editMode) FaIcons.labeled(this, "pen", "กำลังแก้แอพนี้ · แตะเพื่อปิด")
+        else FaIcons.labeled(this, "pen", "แตะเพื่อแก้แอพนี้ด้วยแชท")
         chip.background = roundedBg(
             if (editMode) 0xFF5F6CF5.toInt() else 0xFF23232B.toInt(),
             dp(14).toFloat()
@@ -1944,7 +1973,7 @@ class MainActivity : AppCompatActivity() {
             chip.text = ""
             chip.visibility = View.GONE
         } else {
-            chip.text = "🖼 แนบรูปแล้ว ✕"
+            chip.text = FaIcons.labeled(this, "image", "แนบรูปแล้ว · แตะเพื่อลบ")
             chip.background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
             chip.visibility = View.VISIBLE
         }
@@ -2017,7 +2046,11 @@ class MainActivity : AppCompatActivity() {
         }.getOrNull().orEmpty()
         AlertDialog.Builder(this)
             .setTitle("Any")
-            .setMessage("เวอร์ชัน $version\nแอพแชทที่สร้างแอพให้คุณได้\n\n github.com/Suidvck/Any")
+            .setMessage(
+                "เวอร์ชัน $version\nแอพแชทที่สร้างแอพให้คุณได้\n\n" +
+                    "github.com/Suidvck/Any\n\n" +
+                    "ไอคอน: Font Awesome Free 6 (CC BY 4.0 · SIL OFL 1.1)\nfontawesome.com"
+            )
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }

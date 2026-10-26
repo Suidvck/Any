@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
 import com.suidvck.any.features.ai.AiPrompts
+import com.suidvck.any.ui.FaIcons
 
 /**
  * Dark "page assistant" dialog: summarize the current page, translate it to
@@ -82,10 +83,8 @@ object PageAssistant {
             ellipsize = TextUtils.TruncateAt.END
         })
         val closeButton = TextView(activity).apply {
-            text = "✕"
-            textSize = 14f
             gravity = Gravity.CENTER
-            setTextColor(0xFFC7C7D2.toInt())
+            FaIcons.setIcon(this, "xmark", 14f, 0xFFC7C7D2.toInt())
             contentDescription = activity.getString(R.string.webtools_close)
             isClickable = true
             isFocusable = true
@@ -100,13 +99,13 @@ object PageAssistant {
 
         val summaryRow = actionRow(
             activity,
-            "📝",
+            "file-lines",
             activity.getString(R.string.webtools_summary_title),
             activity.getString(R.string.webtools_summary_sub)
         )
         val translateRow = actionRow(
             activity,
-            "🌐",
+            "globe",
             activity.getString(R.string.webtools_translate_title),
             activity.getString(R.string.webtools_translate_sub)
         )
@@ -346,7 +345,7 @@ object PageAssistant {
 
     private fun actionRow(
         activity: Activity,
-        emoji: String,
+        icon: String,
         title: String,
         subtitle: String
     ): LinearLayout {
@@ -362,14 +361,12 @@ object PageAssistant {
                 dp(activity, 12), dp(activity, 11)
             )
         }
-        row.addView(
-            TextView(activity).apply {
-                text = emoji
-                textSize = 18f
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 34))
-            }
-        )
+        val iconView = TextView(activity).apply {
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 34))
+        }
+        FaIcons.setIcon(iconView, icon, 18f, BRAND)
+        row.addView(iconView)
         val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         column.addView(TextView(activity).apply {
             text = title
@@ -388,14 +385,11 @@ object PageAssistant {
             column,
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
-        row.addView(
-            TextView(activity).apply {
-                text = "›"
-                textSize = 20f
-                setTextColor(MUTED)
-                gravity = Gravity.CENTER
-            }
-        )
+        val arrow = TextView(activity).apply {
+            gravity = Gravity.CENTER
+        }
+        FaIcons.setIcon(arrow, "chevron-right", 14f, MUTED)
+        row.addView(arrow)
         return row
     }
 

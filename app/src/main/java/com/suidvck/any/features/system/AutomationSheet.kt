@@ -396,7 +396,7 @@ object AutomationSheet {
         })
 
         val appSpinner = Spinner(ctx).apply {
-            adapter = darkAdapter(ctx, apps.map { "${it.emoji} ${it.name}" })
+            adapter = darkAdapter(ctx, apps.map { it.name })
             backgroundTintList = ColorStateList.valueOf(MUTED)
             setSelection(appIndex)
             visibility = View.GONE

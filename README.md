@@ -74,7 +74,10 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### Design
 - Edge-to-edge and truly full-screen — the status bar is always hidden.
 - Floating chat sheet with a home button: light AI bubbles, rose user bubbles, pill input with a circular send button, plus an edit chip that shows which app your next message will update.
+- **All page tools live in the chat panel** — browser menu, page assistant and find-in-page sit in a compact row above the input, so nothing floats over the page itself. The row hides when no page is open and in Picture-in-Picture.
+- **A single icon language** — the whole UI uses Font Awesome Free 6 solid icons instead of emoji, and every saved mini-app keeps a Font Awesome icon you can change from the library.
 - Home screen with a stacked pixel clock, soft corner blobs (light and dark palettes), media controls, a recent-apps rail, and the three-slot dock.
+- Panels open over a fully transparent scrim — the home screen stays visible and clean behind them, and tapping outside still dismisses the panel.
 - Swipe right on the home screen to jump back to the last page you opened (AI mini-app or site); the home button in the chat sheet takes you back home.
 - The signature two-ring logo (app icon and floating button).
 
@@ -132,6 +135,7 @@ Works with Android Studio (any recent version) or a JDK 17+ toolchain and the An
 ## Tech stack
 
 - 100% Kotlin, single Activity, fully programmatic UI (no XML-driven screens beyond the shell).
+- Font Awesome Free 6 (solid + regular) bundled as font assets and rendered by a small `FaIcons` helper — no icon library, no runtime download.
 - AndroidX WebKit `addDocumentStartJavaScript` for keep-alive and ad-blocking script injection.
 - AppCompat + Material components, `androidx.webkit` 1.12.1, WorkManager 2.10.1, Biometric 1.1.0.
 - Theming: full-screen light/dark UI with custom drawing for the chat sheet, pixel clock, blobs and logo.
@@ -146,6 +150,11 @@ Works with Android Studio (any recent version) or a JDK 17+ toolchain and the An
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Any bundles the Font Awesome Free 6 icon fonts. Font Awesome icons are
+CC BY 4.0 and the font files are SIL OFL 1.1 — see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full attribution and
+license text.
 
 ---
 

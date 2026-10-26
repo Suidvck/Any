@@ -5,7 +5,7 @@
     <string name="open_chat">เปิดแชท</string>
     <string name="label_you">You</string>
     <string name="label_assistant">Assistant</string>
-    <string name="greeting">สวัสดีครับ! 👋 พิมพ์สั่งได้เลย เช่น “สร้างเกมงู” หรือ “เปิด youtube”</string>
+    <string name="greeting">สวัสดีครับ! พิมพ์สั่งได้เลย เช่น “สร้างเกมงู” หรือ “เปิด youtube”</string>
     <string name="settings">ตั้งค่า AI</string>
     <string name="provider">ผู้ให้บริการ</string>
     <string name="api_key">API Key</string>
@@ -16,8 +16,8 @@
     <string name="thinking">กำลังคิด…</string>
     <string name="no_api_key">ยังไม่ได้ตั้งค่า API key — พิมพ์ /setting เพื่อใส่ key ก่อนนะครับ</string>
     <string name="max_context">Max context (จำนวนข้อความที่ส่งให้ AI)</string>
-    <string name="chat_cleared">ล้างประวัติแชทแล้วครับ 🧹</string>
-    <string name="saved">บันทึกการตั้งค่าแล้ว ✅ ลองพิมพ์สั่งได้เลย</string>
+    <string name="chat_cleared">ล้างประวัติแชทแล้วครับ</string>
+    <string name="saved">บันทึกการตั้งค่าแล้ว ลองพิมพ์สั่งได้เลย</string>
     <string name="error_prefix">ผิดพลาด: </string>
     <string name="loading_dots">กำลังโหลด…</string>
     <string name="type_something">Type Something …</string>
@@ -35,12 +35,12 @@
     <string name="models_filter_hint">พิมพ์เพื่อค้นหา…</string>
     <string name="models_empty">ไม่พบโมเดลจากผู้ให้บริการนี้</string>
     <string name="models_need_base">ใส่ Base URL ก่อนนะครับ</string>
-    <string name="voice_listening">🎤 กำลังฟัง… พูดได้เลยครับ</string>
-    <string name="voice_processing">🎤 กำลังประมวลผล…</string>
-    <string name="voice_not_heard">ไม่ได้ยินเสียงครับ ลองกดค้างที่ไอคอนแชทแล้วพูดอีกครั้ง 🎤</string>
-    <string name="voice_need_permission">ต้องอนุญาตให้ใช้ไมโครโฟนก่อนนะครับ 🎤</string>
+    <string name="voice_listening">กำลังฟัง… พูดได้เลยครับ</string>
+    <string name="voice_processing">กำลังประมวลผล…</string>
+    <string name="voice_not_heard">ไม่ได้ยินเสียงครับ ลองกดค้างที่ไอคอนแชทแล้วพูดอีกครั้ง</string>
+    <string name="voice_need_permission">ต้องอนุญาตให้ใช้ไมโครโฟนก่อนนะครับ</string>
     <string name="voice_unavailable">เครื่องนี้ยังไม่รองรับการฟังเสียงครับ</string>
-    <string name="link_blocked">บล็อกการเปิดแอพอื่นไว้แล้วครับ 🚫</string>
+    <string name="link_blocked">บล็อกการเปิดแอพอื่นไว้แล้วครับ</string>
     <string name="adblock_label">บล็อกโฆษณา / แทร็กเกอร์</string>
     <string name="home">หน้าหลัก</string>
     <string name="more">เพิ่มเติม</string>
