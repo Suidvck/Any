@@ -211,7 +211,7 @@ private class BrowserSheet(
         column.addView(subtitleView, LinearLayout.LayoutParams(MP, WC))
 
         row.addView(column, LinearLayout.LayoutParams(0, WC, 1f))
-        row.addView(iconButton("xmark", TEXT_MUTED, 38) { dismiss() })
+        row.addView(iconButton("xmark", TEXT_MUTED, 38, description = "ปิด") { dismiss() })
         return row
     }
 
@@ -522,7 +522,7 @@ private class BrowserSheet(
     // ---------- rows ----------
 
     private fun tabRow(entry: TabEntry, current: Boolean): View {
-        val close = iconButton("xmark", TEXT_MUTED) {
+        val close = iconButton("xmark", TEXT_MUTED, description = "ปิดแท็บ") {
             try {
                 onCloseTab(entry.id)
             } catch (_: Throwable) {
@@ -555,7 +555,8 @@ private class BrowserSheet(
         val star = iconButton(
             "star",
             if (starred) STAR_ON else TEXT_MUTED,
-            regular = !starred
+            regular = !starred,
+            description = if (starred) "เอาบุ๊กมาร์กออก" else "บันทึกบุ๊กมาร์ก"
         ) {
             try {
                 history.toggleBookmark(entry.url)
@@ -647,10 +648,12 @@ private class BrowserSheet(
         color: Int,
         sizeDp: Int = 34,
         regular: Boolean = false,
+        description: String? = null,
         onClick: () -> Unit
     ): TextView = TextView(activity).apply {
         FaIcons.setIcon(this, icon, 15f, color, regular)
         gravity = Gravity.CENTER
+        contentDescription = description
         isClickable = true
         isFocusable = true
         background = circleRipple()

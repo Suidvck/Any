@@ -64,6 +64,7 @@ class OverlayPanel(private val context: Context, private val parent: FrameLayout
         val close = TextView(context)
         FaIcons.setIcon(close, "xmark", 13f, 0xCCFFFFFF.toInt())
         close.gravity = Gravity.CENTER
+        close.contentDescription = "ปิด"
         close.setPadding(dp(12), dp(4), dp(12), dp(4))
         close.setOnClickListener { hide() }
         bar.addView(close)
