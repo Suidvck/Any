@@ -32,6 +32,7 @@ import com.suidvck.any.features.data.HistoryEntry
 import com.suidvck.any.features.data.HistoryStore
 import com.suidvck.any.features.data.TabEntry
 import com.suidvck.any.features.data.TabStore
+import com.suidvck.any.ui.AnyChrome
 import com.suidvck.any.ui.FaIcons
 
 /*
@@ -125,6 +126,7 @@ private class BrowserSheet(
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.show()
+        AnyChrome.sheet(dialog)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.window?.setDimAmount(0.6f)
         // The sheet's own FrameLayout would otherwise draw Material's light surface
@@ -678,7 +680,7 @@ private class BrowserSheet(
     }
 
     private fun confirmClearHistory() {
-        MaterialAlertDialogBuilder(activity)
+        val dialog = MaterialAlertDialogBuilder(activity)
             .setTitle("ล้างประวัติ")
             .setMessage("ลบประวัติการเข้าชมทั้งหมด? บุ๊กมาร์กจะยังคงอยู่")
             .setNegativeButton("ยกเลิก", null)
@@ -690,7 +692,9 @@ private class BrowserSheet(
                 renderHistory()
                 renderBookmarks()
             }
-            .show()
+            .create()
+        dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     private fun dismiss() {

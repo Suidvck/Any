@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.suidvck.any.R
+import com.suidvck.any.ui.AnyChrome
 import com.suidvck.any.ui.FaIcons
 
 /**
@@ -234,6 +235,7 @@ object ExtrasMenu {
         }
 
         dialog.show()
+        AnyChrome.sheet(dialog)
     }
 
     @Suppress("DEPRECATION")

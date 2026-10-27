@@ -26,6 +26,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
 import com.suidvck.any.features.data.ChatStore
 import com.suidvck.any.features.data.Conversation
+import com.suidvck.any.ui.AnyChrome
 import java.util.Calendar
 import kotlin.math.min
 
@@ -171,6 +172,7 @@ object ChatHistorySheet {
 
             refresh()
             dialog.show()
+            AnyChrome.sheet(dialog)
         }
 
         private fun buildHeader(): View {
@@ -382,6 +384,7 @@ object ChatHistorySheet {
                 .create()
             styleDialog(alert, positive = COLOR_BRAND, neutral = COLOR_ROSE)
             alert.show()
+            AnyChrome.dialog(alert)
         }
 
         private fun confirmDelete(conversation: Conversation) {
@@ -403,6 +406,7 @@ object ChatHistorySheet {
                 .create()
             styleDialog(alert, positive = COLOR_ROSE, neutral = COLOR_MUTED)
             alert.show()
+            AnyChrome.dialog(alert)
         }
 
         private fun dialogTitle(text: String): TextView = TextView(activity).apply {

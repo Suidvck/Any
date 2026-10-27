@@ -27,3 +27,15 @@ JavaScript.
 Attribution: icons by [Font Awesome](https://fontawesome.com), licensed under
 CC BY 4.0; the Font Awesome Free font files are licensed under the SIL Open
 Font License 1.1.
+
+---
+
+## Jsoup
+
+- **Project:** <https://jsoup.org>
+- **Copyright:** Copyright (c) 2009-2024 Jonathan Hedley
+- **License:** MIT — <https://jsoup.org/license>
+- **Used for:** parsing HTML from the live web-search feature before results
+  are handed to the AI. Jsoup does not make network requests itself; Any only
+  feeds it the pages fetched for a search query.
+

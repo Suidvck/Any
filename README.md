@@ -39,7 +39,8 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 - **Image attachments** — attach a photo or screenshot to a prompt for vision-capable models.
 - **Conversation history** — chats are stored locally. Start a new chat, switch between conversations, and continue exactly where you left off.
 - **Overlay panels** — ask for something floating (a clock, notes, extra buttons) and the AI returns an `` ```html-overlay `` block that opens as a small draggable panel on top of the current screen. It stays visible even when a video goes fullscreen.
-- `OPEN_URL:` protocol — ask for a site and the built-in browser opens it (real site URLs, including search URLs).
+- `OPEN_URL:` protocol - ask for a site and the built-in browser opens it (real site URLs, including search URLs).
+- **Live web search** - when a question needs current facts, the AI asks the app to search the web, receives the top results and answers with sources. No search API key is required; toggle it under AI settings. Queries go directly to Bing (DuckDuckGo fallback) from the device.
 - Bring your own AI key: **Gemini (free tier)**, **OpenAI**, **OpenRouter**, **Groq**, or any OpenAI-compatible endpoint via the Custom option (base URL + model).
 - Configurable context window, per-provider base URL and model, `/clear` to reset the conversation.
 
@@ -59,10 +60,10 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### Voice & commands
 - Long-press the floating chat ring to give a voice command using in-app speech recognition (Thai).
 - **Read replies aloud** with Android TTS, and use hands-free voice mode: Any listens again automatically after it finishes speaking.
-- `/clear` resets the chat · `/setting` opens configuration (provider, model, API key, context size, ad blocker).
+- `/clear` resets the chat · `/setting` opens configuration (provider, model, API key, context size, ad blocker, live web search).
 
 ### Automation & privacy
-- **Scheduled automations** — set a daily reminder that opens a URL or a saved mini-app, or prefills a prompt for you. Jobs run through WorkManager and are stored only on the device.
+- **Scheduled automations** - set a daily reminder that opens a URL or a saved mini-app, or prefills a prompt for you. Jobs run through WorkManager and are stored only on the device. They keep running after the app is closed and survive a reboot; a manual force-stop or aggressive battery saver may delay them until the app is opened again.
 - **Biometric lock** — optionally protect Any with fingerprint, face or device credentials.
 - **In-app updater** — checks the signed GitHub Releases feed for a newer version and opens the download.
 - **Home-screen widget** — jump straight into a new chat from the launcher.

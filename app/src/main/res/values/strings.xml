@@ -42,6 +42,11 @@
     <string name="voice_unavailable">เครื่องนี้ยังไม่รองรับการฟังเสียงครับ</string>
     <string name="link_blocked">บล็อกการเปิดแอพอื่นไว้แล้วครับ</string>
     <string name="adblock_label">บล็อกโฆษณา / แทร็กเกอร์</string>
+    <string name="web_search_label">ให้ AI ค้นหาเว็บ</string>
+    <string name="web_search_checking">กำลังค้นหาเว็บ…</string>
+    <string name="web_searching">กำลังค้นหาเว็บ: %1$s</string>
+    <string name="web_search_reading">กำลังอ่านผลการค้นหา…</string>
+    <string name="web_search_limit">AI ค้นหาหลายรอบเกินไป ลองถามใหม่อีกครั้งนะครับ</string>
     <string name="home">หน้าหลัก</string>
     <string name="more">เพิ่มเติม</string>
     <string name="attach_photo">แนบรูป</string>

@@ -24,9 +24,14 @@
     <string name="home_preset_custom">กำหนดเอง</string>
 
     <!-- Appearance sheet -->
-    <string name="home_appearance_title">สีและนาฬิกา</string>
-    <string name="home_appearance_subtitle">เลือกสีหลักและรูปแบบตัวเลขบนหน้าจอ</string>
+    <string name="home_appearance_title">สี ธีม และนาฬิกา</string>
+    <string name="home_appearance_subtitle">เลือกสีหลัก ไอคอนแอพ และรูปแบบตัวเลขบนหน้าจอ</string>
     <string name="home_appearance_accent">สีหลัก</string>
+    <string name="home_appearance_tone">ไอคอนแอพ</string>
+    <string name="home_tone_color">สีจริง</string>
+    <string name="home_tone_color_sub">แสดงไอคอนของแต่ละเว็บไซต์ตามสีจริง</string>
+    <string name="home_tone_gray">ขาวดำ (Grayscale)</string>
+    <string name="home_tone_gray_sub">แสดงไอคอนแอพเป็นขาวดำ</string>
     <string name="home_appearance_clock">รูปแบบนาฬิกา</string>
     <string name="home_appearance_done">เสร็จสิ้น</string>
     <string name="home_clock_doto">Doto (Pixel)</string>

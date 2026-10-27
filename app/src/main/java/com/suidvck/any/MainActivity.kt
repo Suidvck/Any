@@ -44,9 +44,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.URLUtil
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -55,7 +53,6 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.ScrollView
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -76,8 +73,10 @@ import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.features.ai.AiMessage
 import com.suidvck.any.features.ai.AiPrompts
+import com.suidvck.any.features.ai.WebSearch
 import com.suidvck.any.features.browser.BrowserMenuSheet
 import com.suidvck.any.features.browser.FindBar
 import com.suidvck.any.features.browser.PageAssistant
@@ -102,6 +101,8 @@ import com.suidvck.any.features.system.AppLock
 import com.suidvck.any.features.system.AutomationScheduler
 import com.suidvck.any.features.system.AutomationSheet
 import com.suidvck.any.features.system.ExtrasMenu
+import com.suidvck.any.ui.AnyChrome
+import com.suidvck.any.ui.ChoiceSheet
 import com.suidvck.any.ui.FaIcons
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -293,6 +294,11 @@ class MainActivity : AppCompatActivity() {
         clockText.typeface =
             if (Build.VERSION.SDK_INT >= 28 && clockFont != null) Typeface.create(clockFont, 800, false)
             else clockFont
+        clockText.setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            Appearance.showSheet(this)
+            true
+        }
         ui.post(clockTick)
 
         Appearance.applyTo(this)
@@ -404,6 +410,8 @@ class MainActivity : AppCompatActivity() {
         val overlayHtml = intent.getStringExtra("overlayHtml")
         val navTest = intent.getStringExtra("navTest")
         val openAppId = intent.getStringExtra("openAppId")
+        val editAppId = intent.getStringExtra("editAppId")
+        val editDock = intent.getIntExtra("editDock", -1)
         val modelSearchBase = intent.getStringExtra("modelSearchBase")
         val runJs = intent.getStringExtra("runJs")
         val pipAction = intent.getStringExtra("pipAction")
@@ -422,6 +430,11 @@ class MainActivity : AppCompatActivity() {
             !openUrl.isNullOrBlank() -> root.post { showPreview(url = openUrl) }
             !overlayHtml.isNullOrBlank() -> root.post { showOverlay(overlayHtml) }
             !openAppId.isNullOrBlank() -> root.post { miniApps.get(openAppId)?.let { showApp(it) } }
+            !editAppId.isNullOrBlank() -> root.post { openLibrary(editAppId) }
+            editDock >= 0 -> root.post {
+                hidePreview()
+                dockView.openEditorFor(editDock)
+            }
             intent.getBooleanExtra("openLibrary", false) -> root.post { openLibrary() }
             intent.getBooleanExtra("chatHistory", false) -> root.post { openChatHistory() }
             intent.getBooleanExtra("pageAssistant", false) -> root.post { openPageAssistant() }
@@ -437,7 +450,13 @@ class MainActivity : AppCompatActivity() {
                 ensureNotificationPermission()
                 AutomationSheet.show(this)
             }
+            intent.hasExtra("grayscale") -> root.post {
+                Appearance.setGrayscale(this, intent.getBooleanExtra("grayscale", true))
+            }
             intent.getBooleanExtra("appearanceMenu", false) -> root.post { Appearance.showSheet(this) }
+            intent.getBooleanExtra("timeSheet", false) -> root.post {
+                com.suidvck.any.ui.TimeSheet.show(this, 9, 30) { _, _ -> }
+            }
             intent.getBooleanExtra("checkUpdate", false) -> root.post { Updater.check(this, false) }
             intent.getBooleanExtra("showHome", false) -> root.post { hidePreview() }
             intent.getBooleanExtra("reopenLast", false) -> root.post { reopenLastPage() }
@@ -1059,41 +1078,98 @@ class MainActivity : AppCompatActivity() {
                 else AiMessage(role, content)
             }
         }
+        val webSearchEnabled = prefs.getBoolean("web_search", true)
+        var workingHistory = aiHistory
+        var searchRounds = 0
 
-        AiClient.streamChat(
-            baseUrl = base,
-            apiKey = key,
-            model = model,
-            systemExtra = systemExtra,
-            history = aiHistory,
-            onDelta = { full ->
-                if (!isFinishing) {
-                    thinkingText.text = full.ifBlank { getString(R.string.thinking) }
-                    messagesScroll.post { messagesScroll.fullScroll(View.FOCUS_DOWN) }
+        fun finishRequest() {
+            generating = false
+            sendButton.isEnabled = true
+            sendButton.alpha = 1f
+            messagesContainer.removeView(thinking)
+        }
+
+        fun failRequest(message: String) {
+            if (isFinishing) return
+            finishRequest()
+            addMessage(you = false, text = getString(R.string.error_prefix) + message)
+        }
+
+        fun askAi(extra: String?) {
+            AiClient.streamChat(
+                baseUrl = base,
+                apiKey = key,
+                model = model,
+                systemExtra = extra,
+                history = workingHistory,
+                webSearch = webSearchEnabled,
+                onDelta = { full ->
+                    if (!isFinishing) {
+                        val trimmed = full.trimStart()
+                        thinkingText.text = if (
+                            trimmed.startsWith("SEARCH:", ignoreCase = true)
+                        ) {
+                            getString(R.string.web_search_checking)
+                        } else {
+                            full.ifBlank { getString(R.string.thinking) }
+                        }
+                        messagesScroll.post { messagesScroll.fullScroll(View.FOCUS_DOWN) }
+                    }
+                },
+                onDone = { full ->
+                    if (isFinishing) return@streamChat
+                    val query = if (webSearchEnabled) WebSearch.extractQuery(full) else null
+                    if (query != null) {
+                        if (searchRounds >= 2) {
+                            failRequest(getString(R.string.web_search_limit))
+                            return@streamChat
+                        }
+                        searchRounds++
+                        workingHistory =
+                            workingHistory + AiMessage("assistant", "SEARCH: $query")
+                        thinkingText.text = getString(R.string.web_searching, query)
+                        WebSearch.search(query) { result ->
+                            if (isFinishing) return@search
+                            val note = result.fold(
+                                onSuccess = { hits ->
+                                    if (hits.isEmpty()) {
+                                        "Web search returned no results. Answer the user's " +
+                                            "latest message from your own knowledge and tell " +
+                                            "them that live results were unavailable."
+                                    } else {
+                                        WebSearch.buildContext(query, hits)
+                                    }
+                                },
+                                onFailure = { error ->
+                                    "Web search failed (${error.message ?: "unknown error"}). " +
+                                        "Answer the user's latest message from your own " +
+                                        "knowledge and tell them that live search was unavailable."
+                                }
+                            )
+                            thinkingText.text = getString(R.string.web_search_reading)
+                            askAi(listOfNotNull(extra, note).joinToString("\n\n"))
+                        }
+                        return@streamChat
+                    }
+                    finishRequest()
+                    if (full.isBlank()) {
+                        addMessage(
+                            you = false,
+                            text = getString(R.string.error_prefix) + "empty reply"
+                        )
+                    } else {
+                        history += "assistant" to full
+                        handleReply(full)
+                    }
+                },
+                onError = { e ->
+                    if (isFinishing) return@streamChat
+                    failRequest(e.message ?: "unknown error")
                 }
-            },
-            onDone = { full ->
-                if (isFinishing) return@streamChat
-                generating = false
-                sendButton.isEnabled = true
-                sendButton.alpha = 1f
-                messagesContainer.removeView(thinking)
-                if (full.isBlank()) {
-                    addMessage(you = false, text = getString(R.string.error_prefix) + "empty reply")
-                } else {
-                    history += "assistant" to full
-                    handleReply(full)
-                }
-            },
-            onError = { e ->
-                if (isFinishing) return@streamChat
-                generating = false
-                sendButton.isEnabled = true
-                sendButton.alpha = 1f
-                messagesContainer.removeView(thinking)
-                addMessage(you = false, text = getString(R.string.error_prefix) + (e.message ?: "unknown error"))
-            }
-        )
+            )
+        }
+
+        askAi(systemExtra)
     }
 
     /** Removes the HTML/overlay code blocks and OPEN_URL markers from a reply. */
@@ -1766,8 +1842,8 @@ class MainActivity : AppCompatActivity() {
         else Toast.makeText(this, "ไม่พบแอพนี้", Toast.LENGTH_SHORT).show()
     }
 
-    private fun openLibrary() {
-        LibrarySheet.show(this, miniApps) { app -> showApp(app) }
+    private fun openLibrary(editAppId: String? = null) {
+        LibrarySheet.show(this, miniApps, editAppId) { app -> showApp(app) }
     }
 
     private fun setupRecentApps() {
@@ -2021,7 +2097,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleAppLock() {
         val on = AppLock.isEnabled(this)
-        AlertDialog.Builder(this)
+        val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
             .setTitle("ล็อคแอพ")
             .setMessage(
                 if (on) "ปิดการล็อคด้วยไบโอเมตริก?"
@@ -2037,14 +2113,16 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     private fun showAbout() {
         val version = runCatching {
             packageManager.getPackageInfo(packageName, 0).versionName
         }.getOrNull().orEmpty()
-        AlertDialog.Builder(this)
+        val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
             .setTitle("Any")
             .setMessage(
                 "เวอร์ชัน $version\nแอพแชทที่สร้างแอพให้คุณได้\n\n" +
@@ -2052,7 +2130,9 @@ class MainActivity : AppCompatActivity() {
                     "ไอคอน: Font Awesome Free 6 (CC BY 4.0 · SIL OFL 1.1)\nfontawesome.com"
             )
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .create()
+        dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     private fun roundedBg(color: Int, radiusPx: Float): GradientDrawable =
@@ -2079,57 +2159,114 @@ class MainActivity : AppCompatActivity() {
             minimumWidth = dp(280)
         }
 
-        val providerSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@MainActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                providers.map { it.name }
-            )
+        val providerSpinner = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isClickable = true
+            isFocusable = true
+            contentDescription = getString(R.string.provider)
         }
+        val providerValue = TextView(this).apply {
+            text = providers[savedProvider].name
+            setTextColor(getColor(R.color.white))
+            textSize = 14f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        providerSpinner.addView(
+            providerValue,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        providerSpinner.addView(
+            FaIcons.make(this, "chevron-down", 12f, getColor(R.color.icon_muted)),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(8) }
+        )
 
         val baseInput = EditText(this).apply {
             hint = getString(R.string.base_url)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine()
             setText(prefs.getString("base", AiClient.DEFAULT_BASE))
+            setTextColor(getColor(R.color.white))
+            setHintTextColor(getColor(R.color.input_hint))
+            textSize = 14f
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
         }
         val modelInput = EditText(this).apply {
             hint = getString(R.string.model)
             setSingleLine()
             setText(prefs.getString("model", AiClient.DEFAULT_MODEL))
+            setTextColor(getColor(R.color.white))
+            setHintTextColor(getColor(R.color.input_hint))
+            textSize = 14f
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
         }
         val keyInput = EditText(this).apply {
             hint = getString(R.string.api_key)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine()
             setText(prefs.getString("key", ""))
+            setTextColor(getColor(R.color.white))
+            setHintTextColor(getColor(R.color.input_hint))
+            textSize = 14f
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
         }
         val maxCtxInput = EditText(this).apply {
             hint = getString(R.string.max_context)
             inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine()
             setText(prefs.getInt("maxContext", DEFAULT_MAX_CONTEXT).toString())
+            setTextColor(getColor(R.color.white))
+            setHintTextColor(getColor(R.color.input_hint))
+            textSize = 14f
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
         }
         val adBlockCheck = CheckBox(this).apply {
             setText(R.string.adblock_label)
             isChecked = prefs.getBoolean("adblock", true)
+            setTextColor(getColor(R.color.white))
+            buttonTintList = android.content.res.ColorStateList.valueOf(
+                getColor(R.color.brand)
+            )
+        }
+        val webSearchCheck = CheckBox(this).apply {
+            setText(R.string.web_search_label)
+            isChecked = prefs.getBoolean("web_search", true)
+            setTextColor(getColor(R.color.white))
+            buttonTintList = android.content.res.ColorStateList.valueOf(
+                getColor(R.color.brand)
+            )
         }
 
         var lastProvider = savedProvider
-        providerSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position == lastProvider) return
-                lastProvider = position
-                val p = providers[position]
-                if (p.base.isNotEmpty()) {
-                    baseInput.setText(p.base)
-                    modelInput.setText(p.model)
+        providerSpinner.setOnClickListener {
+            ChoiceSheet.show(
+                this,
+                getString(R.string.provider),
+                null,
+                providers.map { it.name },
+                lastProvider
+            ) { position ->
+                if (position != lastProvider) {
+                    lastProvider = position
+                    providerValue.text = providers[position].name
+                    val p = providers[position]
+                    if (p.base.isNotEmpty()) {
+                        baseInput.setText(p.base)
+                        modelInput.setText(p.model)
+                    }
                 }
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        providerSpinner.setSelection(savedProvider)
 
         col.addView(TextView(this).apply {
             setText(R.string.provider)
@@ -2145,8 +2282,19 @@ class MainActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         modelRow.addView(
-            Button(this).apply {
+            TextView(this).apply {
                 setText(R.string.search)
+                setTextColor(getColor(R.color.white))
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x33FFFFFF),
+                    roundedBg(0xFF2C2C35.toInt(), dp(14).toFloat()),
+                    null
+                )
+                isClickable = true
+                isFocusable = true
                 setOnClickListener {
                     showModelPicker(
                         baseInput.text.toString().trim(),
@@ -2171,8 +2319,9 @@ class MainActivity : AppCompatActivity() {
         }, lp())
         col.addView(maxCtxInput)
         col.addView(adBlockCheck, lp())
+        col.addView(webSearchCheck, lp())
 
-        AlertDialog.Builder(this)
+        val settingsDialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
             .setTitle(R.string.settings)
             .setView(col)
             .setPositiveButton(R.string.save) { _, _ ->
@@ -2186,29 +2335,35 @@ class MainActivity : AppCompatActivity() {
                         (maxCtxInput.text.toString().toIntOrNull() ?: DEFAULT_MAX_CONTEXT).coerceIn(2, 200)
                     )
                     .putBoolean("adblock", adBlockCheck.isChecked)
+                    .putBoolean("web_search", webSearchCheck.isChecked)
                     .apply()
                 adBlockEnabled = adBlockCheck.isChecked
                 addMessage(you = false, text = getString(R.string.saved))
             }
             .setNegativeButton(R.string.cancel, null)
-            .show()
+            .create()
+        settingsDialog.show()
+        AnyChrome.dialog(settingsDialog)
     }
 
     private fun showModelPicker(baseUrl: String, apiKey: String, onPick: (String) -> Unit) {
         if (baseUrl.isBlank()) {
-            AlertDialog.Builder(this)
+            val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
                 .setTitle(R.string.model_search)
                 .setMessage(R.string.models_need_base)
                 .setPositiveButton(android.R.string.ok, null)
-                .show()
+                .create()
+            dialog.show()
+            AnyChrome.dialog(dialog)
             return
         }
 
-        val loading = AlertDialog.Builder(this)
+        val loading = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
             .setMessage(R.string.models_loading)
             .setCancelable(false)
             .create()
         loading.show()
+        AnyChrome.dialog(loading)
 
         AiClient.listModels(baseUrl, apiKey) { result ->
             runOnUiThread {
@@ -2216,11 +2371,13 @@ class MainActivity : AppCompatActivity() {
                 loading.dismiss()
                 result.onSuccess { models ->
                     if (models.isEmpty()) {
-                        AlertDialog.Builder(this)
+                        val empty = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
                             .setTitle(R.string.model_search)
                             .setMessage(R.string.models_empty)
                             .setPositiveButton(android.R.string.ok, null)
-                            .show()
+                            .create()
+                        empty.show()
+                        AnyChrome.dialog(empty)
                         return@onSuccess
                     }
 
@@ -2228,9 +2385,36 @@ class MainActivity : AppCompatActivity() {
                         hint = getString(R.string.models_filter_hint)
                         setSingleLine()
                         inputType = InputType.TYPE_CLASS_TEXT
+                        setTextColor(getColor(R.color.white))
+                        setHintTextColor(getColor(R.color.input_hint))
+                        textSize = 14f
+                        setPadding(dp(14), dp(12), dp(14), dp(12))
+                        background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
                     }
-                    val list = ListView(this)
-                    val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, ArrayList(models))
+                    val list = ListView(this).apply {
+                        dividerHeight = 0
+                        setSelector(android.R.color.transparent)
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        overScrollMode = View.OVER_SCROLL_NEVER
+                        isVerticalScrollBarEnabled = false
+                    }
+                    val adapter = object : ArrayAdapter<String>(
+                        this,
+                        android.R.layout.simple_list_item_1,
+                        ArrayList(models)
+                    ) {
+                        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                            val view = super.getView(position, convertView, parent)
+                            (view as? TextView)?.apply {
+                                setTextColor(getColor(R.color.white))
+                                textSize = 14f
+                                setPadding(dp(14), dp(13), dp(14), dp(13))
+                                maxLines = 1
+                                ellipsize = android.text.TextUtils.TruncateAt.END
+                            }
+                            return view
+                        }
+                    }
                     list.adapter = adapter
                     list.layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2261,20 +2445,29 @@ class MainActivity : AppCompatActivity() {
                         setPadding(dp(16), dp(8), dp(16), 0)
                     }
                     col.addView(filter)
-                    col.addView(list)
+                    col.addView(
+                        list,
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            dp(320)
+                        ).apply { topMargin = dp(10) }
+                    )
 
-                    picker = AlertDialog.Builder(this)
+                    picker = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
                         .setTitle(getString(R.string.model_search) + " (" + models.size + ")")
                         .setView(col)
                         .setNegativeButton(R.string.cancel, null)
                         .create()
                     picker.show()
+                    AnyChrome.dialog(picker)
                 }.onFailure { e ->
-                    AlertDialog.Builder(this)
+                    val error = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
                         .setTitle(R.string.model_search)
                         .setMessage(getString(R.string.error_prefix) + (e.message ?: "unknown error"))
                         .setPositiveButton(android.R.string.ok, null)
-                        .show()
+                        .create()
+                    error.show()
+                    AnyChrome.dialog(error)
                 }
             }
         }

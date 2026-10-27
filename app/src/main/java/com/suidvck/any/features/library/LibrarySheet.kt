@@ -27,6 +27,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
 import com.suidvck.any.features.data.MiniApp
 import com.suidvck.any.features.data.MiniAppStore
+import com.suidvck.any.ui.AnyChrome
 import com.suidvck.any.ui.FaIcons
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -39,7 +40,12 @@ import java.util.Locale
  */
 object LibrarySheet {
 
-    fun show(activity: Activity, store: MiniAppStore, onOpen: (MiniApp) -> Unit) {
+    fun show(
+        activity: Activity,
+        store: MiniAppStore,
+        editAppId: String? = null,
+        onOpen: (MiniApp) -> Unit
+    ) {
         if (activity.isFinishing || activity.isDestroyed) return
 
         val density = activity.resources.displayMetrics.density
@@ -272,9 +278,11 @@ object LibrarySheet {
                         }
                     }
                     confirm.show()
+                    AnyChrome.dialog(confirm)
                 }
             }
             editDialog.show()
+            AnyChrome.dialog(editDialog)
         }
 
         fun render() {
@@ -379,6 +387,14 @@ object LibrarySheet {
 
         // setContentView may replace the content layout params, so re-apply ours.
         resize(runCatching { store.list().size }.getOrDefault(0))
+
+        AnyChrome.sheet(dialog)
+
+        // QA deep link: open one app's editor straight away (used by adb intents).
+        if (!editAppId.isNullOrBlank()) {
+            val target = runCatching { store.list().firstOrNull { it.id == editAppId } }.getOrNull()
+            if (target != null) root.post { showEditor(target) }
+        }
     }
 }
 

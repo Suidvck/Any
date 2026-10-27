@@ -77,6 +77,26 @@ object AiClient {
     """.trimIndent()
 
     /**
+     * Extra system rules enabled from Settings when the user allows live web search.
+     * The model asks the app to search with a plain `SEARCH:` line; MainActivity runs
+     * the query and sends the results back as a second system message.
+     */
+    private val SEARCH_PROMPT = """
+        Live web search tool:
+        You can ask the app to search the web before answering. If the user's latest
+        message needs current or fast-changing facts — news, prices, weather, sports,
+        schedules, software releases, or words like "วันนี้", "ล่าสุด", "ตอนนี้" — and you
+        are not certain, reply with ONLY this line:
+
+        SEARCH: <short query in the user's language>
+
+        Do not add an answer, OPEN_URL marker or code block in that reply. The app will
+        run a live web search and send you numbered results, then you answer the user's
+        latest message normally. You may search at most twice per request. If the results
+        do not contain the answer, say so plainly. Never invent facts, links or sources.
+    """.trimIndent()
+
+    /**
      * Original non-streaming call. Kept for backwards compatibility.
      *
      * @param history "user"/"assistant" to content, oldest first.
@@ -153,6 +173,7 @@ object AiClient {
      * the whole reply is delivered through [onDone].
      *
      * @param systemExtra optional second system message (e.g. [com.suidvck.any.features.ai.AiPrompts.editSystem]).
+     * @param webSearch when true the model may request a live web search with `SEARCH: ...`.
      * @param history oldest-first conversation turns; the last 12 are sent.
      */
     fun streamChat(
@@ -161,6 +182,7 @@ object AiClient {
         model: String,
         systemExtra: String?,
         history: List<AiMessage>,
+        webSearch: Boolean = false,
         onDelta: (String) -> Unit,
         onDone: (String) -> Unit,
         onError: (Exception) -> Unit
@@ -188,7 +210,7 @@ object AiClient {
                 val payload = JSONObject()
                     .put("model", model.ifBlank { DEFAULT_MODEL })
                     .put("stream", true)
-                    .put("messages", buildMessages(systemExtra, history))
+                    .put("messages", buildMessages(systemExtra, history, webSearch))
                     .toString()
 
                 val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -400,9 +422,16 @@ object AiClient {
 
     // ---------- payload / parsing helpers ----------
 
-    private fun buildMessages(systemExtra: String?, history: List<AiMessage>): JSONArray {
+    private fun buildMessages(
+        systemExtra: String?,
+        history: List<AiMessage>,
+        webSearch: Boolean
+    ): JSONArray {
         val messages = JSONArray()
         messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+        if (webSearch) {
+            messages.put(JSONObject().put("role", "system").put("content", SEARCH_PROMPT))
+        }
         if (!systemExtra.isNullOrBlank()) {
             messages.put(JSONObject().put("role", "system").put("content", systemExtra))
         }

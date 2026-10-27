@@ -10,6 +10,7 @@ import android.os.Looper
 import android.widget.Toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
+import com.suidvck.any.ui.AnyChrome
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -112,7 +113,9 @@ object Updater {
             }
             .setNegativeButton(R.string.home_update_later, null)
         if (message.isNotEmpty()) builder.setMessage(message)
-        builder.show()
+        val dialog = builder.create()
+        dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     private fun openRelease(activity: Activity, url: String) {

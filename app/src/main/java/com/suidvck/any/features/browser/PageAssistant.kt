@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.R
 import com.suidvck.any.features.ai.AiPrompts
+import com.suidvck.any.ui.AnyChrome
 import com.suidvck.any.ui.FaIcons
 
 /**
@@ -339,6 +340,7 @@ object PageAssistant {
         }
         created.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         created.show()
+        AnyChrome.dialog(created)
     }
 
     // ---------------------------------------------------------------- helpers

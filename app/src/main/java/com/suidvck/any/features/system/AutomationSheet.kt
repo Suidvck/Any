@@ -2,11 +2,9 @@ package com.suidvck.any.features.system
 
 import android.Manifest
 import android.app.Activity
-import android.app.TimePickerDialog
 import android.content.Context
 import android.content.DialogInterface
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -19,13 +17,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
@@ -39,6 +34,10 @@ import com.suidvck.any.R
 import com.suidvck.any.features.data.Automation
 import com.suidvck.any.features.data.AutomationStore
 import com.suidvck.any.features.data.MiniAppStore
+import com.suidvck.any.ui.AnyChrome
+import com.suidvck.any.ui.ChoiceSheet
+import com.suidvck.any.ui.FaIcons
+import com.suidvck.any.ui.TimeSheet
 import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
@@ -193,6 +192,7 @@ object AutomationSheet {
             }
         }
         dialog.show()
+        AnyChrome.sheet(dialog)
     }
 
     // ---------------------------------------------------------------- rows
@@ -321,7 +321,6 @@ object AutomationSheet {
             ?.let { kind -> AutomationInfo.KINDS.indexOf(kind) }
             ?.takeIf { it >= 0 }
             ?: 0
-        var lastKind = initialKind
         var appIndex = apps.indexOfFirst { it.id == existing?.value }.let {
             if (it < 0) 0 else it
         }
@@ -357,32 +356,19 @@ object AutomationSheet {
             background = rounded(ctx, CARD, 14f)
             isClickable = true
             setOnClickListener {
-                TimePickerDialog(ctx, { _, h, m ->
+                TimeSheet.show(ctx, hour, minute) { h, m ->
                     hour = h
                     minute = m
                     text = automationTimeLabel(hour, minute)
-                }, hour, minute, true).show()
+                }
             }
         }
         content.addView(timeButton, LinearLayout.LayoutParams(MATCH, WRAP).apply {
             topMargin = dp(ctx, 6)
         })
 
-        content.addView(sectionLabel(ctx, "ประเภท"))
-        val kindSpinner = Spinner(ctx).apply {
-            adapter = darkAdapter(ctx, AutomationInfo.KINDS.map { AutomationInfo.kindLabel(it) })
-            backgroundTintList = ColorStateList.valueOf(MUTED)
-            setSelection(initialKind)
-        }
-        content.addView(kindSpinner, LinearLayout.LayoutParams(MATCH, WRAP).apply {
-            topMargin = dp(ctx, 2)
-        })
-
+        // The detail field is built early so the kind picker can clear it.
         val valueLabel = sectionLabel(ctx, "รายละเอียด")
-        content.addView(valueLabel, LinearLayout.LayoutParams(MATCH, WRAP).apply {
-            topMargin = dp(ctx, 12)
-        })
-
         val valueInput = EditText(ctx).apply {
             setTextColor(TEXT)
             setHintTextColor(MUTED)
@@ -391,17 +377,60 @@ object AutomationSheet {
             background = rounded(ctx, CARD, 14f)
             inputType = InputType.TYPE_CLASS_TEXT
         }
+        lateinit var syncFields: (Int) -> Unit
+
+        content.addView(sectionLabel(ctx, "ประเภท"))
+        var kindIndex = initialKind
+        val kindLabels = AutomationInfo.KINDS.map { AutomationInfo.kindLabel(it) }
+        val kindValue = choiceValue(ctx)
+        kindValue.text = kindLabels.getOrElse(kindIndex) { kindLabels.first() }
+        val kindRow = choiceRow(ctx, kindValue) {
+            ChoiceSheet.show(
+                activity,
+                "ประเภทการตั้งเวลา",
+                null,
+                kindLabels,
+                kindIndex
+            ) { picked ->
+                if (picked != kindIndex) {
+                    kindIndex = picked
+                    valueInput.setText("")
+                }
+                kindValue.text = kindLabels.getOrElse(picked) { kindLabels.first() }
+                syncFields(picked)
+            }
+        }
+        content.addView(kindRow, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+            topMargin = dp(ctx, 6)
+        })
+
+        content.addView(valueLabel, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+            topMargin = dp(ctx, 12)
+        })
         content.addView(valueInput, LinearLayout.LayoutParams(MATCH, WRAP).apply {
             topMargin = dp(ctx, 6)
         })
 
-        val appSpinner = Spinner(ctx).apply {
-            adapter = darkAdapter(ctx, apps.map { it.name })
-            backgroundTintList = ColorStateList.valueOf(MUTED)
-            setSelection(appIndex)
-            visibility = View.GONE
+        val appValue = choiceValue(ctx)
+        appValue.text = apps.getOrNull(appIndex)?.name ?: "ยังไม่มีแอพ"
+        val appRow = choiceRow(ctx, appValue) {
+            if (apps.isEmpty()) {
+                toast(ctx, "ยังไม่มีแอพที่บันทึกไว้")
+            } else {
+                ChoiceSheet.show(
+                    activity,
+                    "แอพที่ต้องการเปิด",
+                    null,
+                    apps.map { it.name },
+                    appIndex
+                ) { picked ->
+                    appIndex = picked
+                    appValue.text = apps.getOrNull(picked)?.name.orEmpty()
+                }
+            }
         }
-        content.addView(appSpinner, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+        appRow.visibility = View.GONE
+        content.addView(appRow, LinearLayout.LayoutParams(MATCH, WRAP).apply {
             topMargin = dp(ctx, 6)
         })
 
@@ -411,8 +440,8 @@ object AutomationSheet {
         }
         content.addView(noApps, LinearLayout.LayoutParams(MATCH, WRAP))
 
-        fun syncFields(index: Int) {
-            when (AutomationInfo.KINDS[index]) {
+        syncFields = { index ->
+            when (AutomationInfo.KINDS.getOrElse(index) { AutomationInfo.KINDS.first() }) {
                 AutomationWorker.KIND_URL -> {
                     valueLabel.text = "ลิงก์เว็บ"
                     valueInput.visibility = View.VISIBLE
@@ -422,7 +451,7 @@ object AutomationSheet {
                     valueInput.minLines = 1
                     valueInput.maxLines = 1
                     valueInput.gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                    appSpinner.visibility = View.GONE
+                    appRow.visibility = View.GONE
                     noApps.visibility = View.GONE
                 }
                 AutomationWorker.KIND_PROMPT -> {
@@ -435,7 +464,7 @@ object AutomationSheet {
                     valueInput.minLines = 3
                     valueInput.maxLines = 5
                     valueInput.gravity = Gravity.TOP or Gravity.START
-                    appSpinner.visibility = View.GONE
+                    appRow.visibility = View.GONE
                     noApps.visibility = View.GONE
                 }
                 AutomationWorker.KIND_CHAT -> {
@@ -447,13 +476,13 @@ object AutomationSheet {
                     valueInput.minLines = 1
                     valueInput.maxLines = 1
                     valueInput.gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                    appSpinner.visibility = View.GONE
+                    appRow.visibility = View.GONE
                     noApps.visibility = View.GONE
                 }
                 else -> {
                     valueLabel.text = "แอพที่ต้องการเปิด"
                     valueInput.visibility = View.GONE
-                    appSpinner.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
+                    appRow.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
                     noApps.visibility = if (apps.isEmpty()) View.VISIBLE else View.GONE
                 }
             }
@@ -464,33 +493,13 @@ object AutomationSheet {
             valueInput.setText(existing.value)
         }
 
-        kindSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position != lastKind) {
-                    lastKind = position
-                    valueInput.setText("")
-                }
-                syncFields(position.coerceIn(0, AutomationInfo.KINDS.size - 1))
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
-
-        appSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                appIndex = position
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
-
         fun collect(): Automation? {
-            val kindPosition = kindSpinner.selectedItemPosition
-                .coerceIn(0, AutomationInfo.KINDS.size - 1)
-            val kind = AutomationInfo.KINDS[kindPosition]
+            val kind = AutomationInfo.KINDS.getOrElse(kindIndex) {
+                AutomationInfo.KINDS.first()
+            }
             val value = when (kind) {
                 AutomationWorker.KIND_APP -> apps.getOrNull(
-                    appSpinner.selectedItemPosition.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
+                    appIndex.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
                 )?.id ?: ""
                 else -> valueInput.text?.toString()?.trim().orEmpty()
             }
@@ -572,6 +581,7 @@ object AutomationSheet {
             }
         }
         dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     private fun confirmDelete(activity: Activity, a: Automation, onDeleted: () -> Unit) {
@@ -593,6 +603,7 @@ object AutomationSheet {
             dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setTextColor(MUTED)
         }
         dialog.show()
+        AnyChrome.dialog(dialog)
     }
 
     // ------------------------------------------------------------- helpers
@@ -628,36 +639,35 @@ object AutomationSheet {
         }
     }
 
-    private fun darkAdapter(ctx: Context, items: List<String>): ArrayAdapter<String> {
-        val adapter = object : ArrayAdapter<String>(
-            ctx,
-            android.R.layout.simple_spinner_item,
-            items
-        ) {
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val view = super.getView(position, convertView, parent)
-                (view as? TextView)?.let {
-                    it.setTextColor(TEXT)
-                    it.textSize = 14f
-                    it.maxLines = 1
-                    it.ellipsize = TextUtils.TruncateAt.END
-                }
-                return view
-            }
+    private fun choiceValue(ctx: Context): TextView = TextView(ctx).apply {
+        setTextColor(TEXT)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+        includeFontPadding = false
+    }
 
-            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val view = super.getDropDownView(position, convertView, parent)
-                (view as? TextView)?.let {
-                    it.setTextColor(TEXT)
-                    it.textSize = 14f
-                    it.setBackgroundColor(CARD)
-                    it.setPadding(dp(ctx, 16), dp(ctx, 12), dp(ctx, 16), dp(ctx, 12))
-                }
-                return view
-            }
-        }
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        return adapter
+    private fun choiceRow(
+        ctx: Context,
+        value: TextView,
+        onClick: () -> Unit
+    ): LinearLayout = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(ctx, 14), dp(ctx, 12), dp(ctx, 14), dp(ctx, 12))
+        background = rounded(ctx, CARD, 14f)
+        isClickable = true
+        isFocusable = true
+        contentDescription = value.text
+        addView(
+            value,
+            LinearLayout.LayoutParams(0, WRAP, 1f)
+        )
+        addView(
+            FaIcons.make(ctx, "chevron-down", 12f, MUTED),
+            LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(ctx, 8) }
+        )
+        setOnClickListener { onClick() }
     }
 
     private fun sectionLabel(ctx: Context, text: String): TextView =

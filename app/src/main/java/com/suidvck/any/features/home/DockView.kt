@@ -1,33 +1,38 @@
 package com.suidvck.any.features.home
 
 import android.content.Context
-import android.content.DialogInterface
+import android.app.Activity
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Looper
+import android.text.InputType
+import android.text.TextUtils
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.suidvck.any.R
 import com.suidvck.any.features.data.DockItem
 import com.suidvck.any.features.data.DockStore
+import com.suidvck.any.ui.AnyChrome
+import com.suidvck.any.ui.ChoiceSheet
 import kotlin.math.roundToInt
 
 /**
@@ -92,6 +97,15 @@ class DockView @JvmOverloads constructor(
         render()
     }
 
+    /** Opens the editor for one slot (used by the dock editor and for QA). */
+    fun openEditorFor(index: Int) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            post { openEditorFor(index) }
+            return
+        }
+        showEditor(index)
+    }
+
     private fun render() {
         removeAllViews()
         val accent = runCatching { Appearance.accentColor(context) }
@@ -102,6 +116,8 @@ class DockView @JvmOverloads constructor(
     }
 
     private fun createSlot(item: DockItem, index: Int, accent: Int): View {
+        val grayscale = runCatching { Appearance.isGrayscale(context) }.getOrDefault(false)
+        val iconTint = if (grayscale) 0xFFC9C9D2.toInt() else accent
         val slot = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
                 if (index > 0) marginStart = dp(26)
@@ -122,38 +138,55 @@ class DockView @JvmOverloads constructor(
         }
 
         val iconRes = iconFor(item.icon)
-        if (iconRes != 0) {
-            val icon = ImageView(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                setPadding(dp(11), dp(11), dp(11), dp(11))
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setImageResource(iconRes)
-                imageTintList = ColorStateList.valueOf(accent)
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }
-            slot.addView(icon)
-        } else {
-            // No brand icon: circular letter badge filled with the accent color.
+        val letter = TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = Gravity.CENTER
+            text = letterFor(item)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            visibility = if (iconRes == 0) View.VISIBLE else View.GONE
+        }
+        if (iconRes == 0) {
             slot.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(accent)
+                setColor(if (grayscale) 0xFF3B3B45.toInt() else accent)
             }
-            val letter = TextView(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                gravity = Gravity.CENTER
-                text = letterFor(item)
-                setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        slot.addView(letter)
+
+        val iconView = ImageView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            tag = item.url
+            if (iconRes != 0) {
+                setImageResource(iconRes)
+                imageTintList = ColorStateList.valueOf(iconTint)
+            } else {
+                visibility = View.GONE
             }
-            slot.addView(letter)
+            if (grayscale) colorFilter = grayscaleFilter()
+        }
+        slot.addView(iconView)
+
+        // Use the site's own icon once it arrives, whatever preset label is stored.
+        FaviconLoader.load(context, item.url) { bitmap ->
+            if (bitmap == null || iconView.tag != item.url) return@load
+            iconView.setImageBitmap(bitmap)
+            iconView.imageTintList = null
+            iconView.colorFilter = if (grayscale) grayscaleFilter() else null
+            iconView.setPadding(dp(6), dp(6), dp(6), dp(6))
+            iconView.visibility = View.VISIBLE
+            letter.visibility = View.GONE
         }
 
         slot.setOnClickListener { openHandler?.invoke(item) }
@@ -167,107 +200,291 @@ class DockView @JvmOverloads constructor(
     private fun showEditor(index: Int) {
         if (index !in items.indices) return
         val current = items[index]
-        val view = LayoutInflater.from(context).inflate(R.layout.home_dock_editor, null, false)
-        val spinner = view.findViewById<Spinner>(R.id.dock_preset)
-        val urlInput = view.findViewById<EditText>(R.id.dock_url)
-        val labelInput = view.findViewById<EditText>(R.id.dock_label)
-        val hint = view.findViewById<TextView>(R.id.dock_hint)
+        val accent = runCatching { Appearance.accentColor(context) }
+            .getOrDefault(ContextCompat.getColor(context, R.color.home_icon))
+        val dialog = BottomSheetDialog(context)
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.home_sheet_bg)
+            setPadding(dp(20), dp(10), dp(20), dp(22))
+        }
+
+        root.addView(
+            View(context).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(999).toFloat()
+                    setColor(0x33FFFFFF)
+                }
+            },
+            LinearLayout.LayoutParams(dp(38), dp(4)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(16)
+            }
+        )
+        root.addView(
+            TextView(context).apply {
+                text = context.getString(R.string.home_dock_edit_title)
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            }
+        )
+        root.addView(
+            TextView(context).apply {
+                text = current.label
+                setTextColor(0xFF9A9AA5.toInt())
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(0, dp(3), 0, 0)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }
+        )
+
+        root.addView(sectionLabel(R.string.home_dock_preset))
 
         val names = presets.map { context.getString(it.labelRes) } +
             context.getString(R.string.home_preset_custom)
-        val adapter = ArrayAdapter(context, R.layout.home_spinner_item, names)
-        adapter.setDropDownViewResource(R.layout.home_spinner_dropdown)
-        spinner.adapter = adapter
-
         val currentPreset = presets.indexOfFirst { it.key == current.icon }
         val isCustom = currentPreset < 0 || current.icon == "letter"
-        val initialPosition = if (isCustom) presets.size else currentPreset
+        var position = if (isCustom) presets.size else currentPreset
 
-        fun applyPosition(position: Int, forceValues: Boolean) {
-            val custom = position < 0 || position >= presets.size
+        val presetValue = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setPadding(dp(14), dp(13), dp(14), dp(13))
+            background = fieldBackground()
+        }
+        var applyPosition: (Int, Boolean) -> Unit = { _, _ -> }
+        val presetRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = fieldBackground()
+            isClickable = true
+            isFocusable = true
+            contentDescription = context.getString(R.string.home_dock_preset)
+            setPadding(dp(14), dp(13), dp(14), dp(13))
+            addView(
+                presetValue.apply {
+                    setPadding(0, 0, 0, 0)
+                    background = null
+                },
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(
+                com.suidvck.any.ui.FaIcons.make(context, "chevron-down", 12f, 0xFF9A9AA5.toInt()),
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dp(8) }
+            )
+            setOnClickListener {
+                val activity = context as? Activity ?: return@setOnClickListener
+                ChoiceSheet.show(
+                    activity,
+                    context.getString(R.string.home_dock_preset),
+                    null,
+                    names,
+                    position
+                ) { picked ->
+                    position = picked
+                    applyPosition(picked, true)
+                }
+            }
+        }
+        root.addView(
+            presetRow,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        )
+
+        root.addView(sectionLabel(R.string.home_dock_url))
+        val urlInput = fieldInput(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        urlInput.hint = context.getString(R.string.home_dock_url_hint)
+        root.addView(
+            urlInput,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        )
+
+        root.addView(sectionLabel(R.string.home_dock_label))
+        val labelInput = fieldInput(InputType.TYPE_CLASS_TEXT)
+        labelInput.hint = context.getString(R.string.home_dock_label_hint)
+        root.addView(
+            labelInput,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        )
+
+        val hint = TextView(context).apply {
+            text = context.getString(R.string.home_dock_custom_hint)
+            setTextColor(0xFF9A9AA5.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(0, dp(10), 0, 0)
+        }
+        root.addView(hint)
+
+        fun applyPositionValue(selected: Int, forceValues: Boolean) {
+            val custom = selected < 0 || selected >= presets.size
+            val preset = presets.getOrNull(selected)
+            presetValue.text = names.getOrElse(selected) { names.last() }
             urlInput.isEnabled = custom
             labelInput.isEnabled = custom
             urlInput.alpha = if (custom) 1f else 0.55f
             labelInput.alpha = if (custom) 1f else 0.55f
             hint.visibility = if (custom) View.VISIBLE else View.GONE
-            if (!custom && forceValues) {
-                val preset = presets[position]
+            if (!custom && preset != null && forceValues) {
                 urlInput.setText(preset.url)
                 labelInput.setText(context.getString(preset.labelRes))
             }
         }
+        applyPosition = { selected, force -> applyPositionValue(selected, force) }
 
-        spinner.setSelection(initialPosition, false)
-        applyPosition(initialPosition, forceValues = !isCustom)
+        applyPositionValue(position, forceValues = !isCustom)
         if (isCustom) {
             urlInput.setText(current.url)
             labelInput.setText(current.label)
         }
 
-        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                selectedView: View?,
-                position: Int,
-                id: Long
-            ) {
-                applyPosition(position, forceValues = position in presets.indices)
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        val actions = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-
-        val dialog = MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.home_dock_edit_title)
-            .setView(view)
-            .setPositiveButton(R.string.home_save, null)
-            .setNegativeButton(R.string.home_cancel, null)
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setOnClickListener {
-                val position = spinner.selectedItemPosition
-                val custom = position < 0 || position >= presets.size
-                val preset = presets.getOrNull(position)
-
-                val url = if (custom) {
-                    normalizeUrl(urlInput.text.toString())
-                } else {
-                    preset?.url
+        actions.addView(
+            TextView(context).apply {
+                text = context.getString(R.string.home_cancel)
+                setTextColor(0xFF9A9AA5.toInt())
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                gravity = Gravity.CENTER
+                setPadding(dp(18), dp(13), dp(18), dp(13))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(14).toFloat()
+                    setColor(0x14FFFFFF)
                 }
-                if (url == null || url.isBlank()) {
-                    Toast.makeText(context, R.string.home_dock_url_invalid, Toast.LENGTH_SHORT)
-                        .show()
-                    return@setOnClickListener
-                }
-
-                val label = if (custom) {
-                    labelInput.text.toString().trim().ifBlank { hostOf(url) }
-                } else {
-                    context.getString(preset!!.labelRes)
-                }
-                val iconKey = if (custom) "letter" else preset!!.key
-
-                val updated = items.toMutableList()
-                updated[index] = DockItem(label.take(24), url, iconKey)
-
-                val saved = runCatching {
-                    val s = store ?: DockStore(context).also { store = it }
-                    s.setItems(updated)
-                }
-                if (saved.isFailure) {
-                    Toast.makeText(context, R.string.home_dock_save_failed, Toast.LENGTH_SHORT)
-                        .show()
-                    return@setOnClickListener
-                }
-
-                val reloaded = runCatching { store?.items() }.getOrNull().orEmpty()
-                items = normalize(if (reloaded.isEmpty()) updated else reloaded)
-                render()
-                dialog.dismiss()
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { dialog.dismiss() }
+            },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(10)
             }
-        }
+        )
+        actions.addView(
+            TextView(context).apply {
+                text = context.getString(R.string.home_save)
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                gravity = Gravity.CENTER
+                setPadding(dp(18), dp(13), dp(18), dp(13))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(14).toFloat()
+                    setColor(accent)
+                }
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    val custom = position < 0 || position >= presets.size
+                    val preset = presets.getOrNull(position)
+                    val url = if (custom) {
+                        normalizeUrl(urlInput.text.toString())
+                    } else {
+                        preset?.url
+                    }
+                    if (url == null || url.isBlank()) {
+                        Toast.makeText(
+                            context, R.string.home_dock_url_invalid, Toast.LENGTH_SHORT
+                        ).show()
+                        return@setOnClickListener
+                    }
+                    val label = if (custom) {
+                        labelInput.text.toString().trim().ifBlank { hostOf(url) }
+                    } else {
+                        context.getString(preset!!.labelRes)
+                    }
+                    val iconKey = if (custom) "letter" else preset!!.key
+                    val updated = items.toMutableList()
+                    updated[index] = DockItem(label.take(24), url, iconKey)
+                    val saved = runCatching {
+                        val s = store ?: DockStore(context).also { store = it }
+                        s.setItems(updated)
+                    }
+                    if (saved.isFailure) {
+                        Toast.makeText(
+                            context, R.string.home_dock_save_failed, Toast.LENGTH_SHORT
+                        ).show()
+                        return@setOnClickListener
+                    }
+                    val reloaded = runCatching { store?.items() }.getOrNull().orEmpty()
+                    items = normalize(if (reloaded.isEmpty()) updated else reloaded)
+                    render()
+                    dialog.dismiss()
+                }
+            },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(10)
+            }
+        )
+        root.addView(
+            actions,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(18) }
+        )
+
+        dialog.setContentView(root)
+        dialog.window?.setSoftInputMode(
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
+        dialog.behavior.isFitToContents = true
+        dialog.behavior.skipCollapsed = true
         dialog.show()
+        dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            ?.setBackgroundColor(Color.TRANSPARENT)
+        AnyChrome.sheet(dialog)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            view.setPadding(
+                view.paddingLeft,
+                view.paddingTop,
+                view.paddingRight,
+                dp(22) + bottom
+            )
+            insets
+        }
+        runCatching { dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED }
+    }
+
+    private fun grayscaleFilter(): ColorMatrixColorFilter =
+        ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
+
+    private fun sectionLabel(resId: Int): TextView = TextView(context).apply {
+        text = context.getString(resId)
+        setTextColor(0xFF9A9AA5.toInt())
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        setPadding(0, dp(16), 0, 0)
+    }
+
+    private fun fieldBackground(): GradientDrawable = GradientDrawable().apply {
+        cornerRadius = dp(14).toFloat()
+        setColor(0xFF23232B.toInt())
+    }
+
+    private fun fieldInput(inputType: Int): EditText = EditText(context).apply {
+        setTextColor(Color.WHITE)
+        setHintTextColor(0xFF9A9AA5.toInt())
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        setPadding(dp(14), dp(12), dp(14), dp(12))
+        background = fieldBackground()
+        this.inputType = inputType
+        setSingleLine(true)
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
     }
 
     private fun normalize(source: List<DockItem>): List<DockItem> {
