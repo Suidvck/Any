@@ -10,6 +10,7 @@ A Thai-first Android app-builder — describe an idea in chat and the built-in A
 ![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white)
 ![minSdk](https://img.shields.io/badge/minSdk-24%2B-3DDC84)
 ![Release](https://img.shields.io/github/v/release/Suidvck/Any?label=release&color=blue)
+![Build](https://github.com/Suidvck/Any/actions/workflows/android.yml/badge.svg)
 ![License](https://img.shields.io/github/license/Suidvck/Any?color=green)
 
 </div>
@@ -114,9 +115,14 @@ cd Any
 # Build the debug APK
 ./gradlew assembleDebug
 
+# Run the unit tests
+./gradlew testDebugUnitTest
+
 # Install on a connected device
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Every push and pull request runs the same tests and builds the debug APK on GitHub Actions (`.github/workflows/android.yml`).
 
 Works with Android Studio (any recent version) or a JDK 17+ toolchain and the Android SDK. `minSdk 24` (Android 7.0+), `targetSdk 37`.
 

@@ -135,7 +135,14 @@ class MiniAppStore(private val dir: File) {
         if (loaded) return
         loaded = true
         when (val read = indexFile.readJson()) {
-            is JsonFile.Read.Ok -> parseIndex(read.text)
+            is JsonFile.Read.Ok -> {
+                if (!parseIndex(read.text)) {
+                    // Valid JSON with the wrong shape is just as unusable as broken JSON.
+                    val preserved = indexFile.quarantine()
+                    Log.w(TAG, "unusable index quarantined at ${preserved?.name ?: "?"}")
+                    rebuildFromDisk("unusable")
+                }
+            }
             JsonFile.Read.Missing -> rebuildFromDisk("missing")
             JsonFile.Read.Corrupt -> {
                 // Preserve the damaged bytes for manual recovery, then rebuild the index from
@@ -148,13 +155,14 @@ class MiniAppStore(private val dir: File) {
         }
     }
 
-    private fun parseIndex(text: String) {
+    /** Returns false when [text] is valid JSON but does not contain an apps array. */
+    private fun parseIndex(text: String): Boolean {
         val root = try {
             JSONObject(text)
         } catch (_: Throwable) {
-            return
+            return false
         }
-        val array = root.optJSONArray("apps") ?: return
+        val array = root.optJSONArray("apps") ?: return false
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue
             val id = obj.optString("id").trim()
@@ -170,6 +178,7 @@ class MiniAppStore(private val dir: File) {
             val updatedAt = obj.optLong("updatedAt", createdAt).takeIf { it > 0L } ?: createdAt
             apps.add(MiniApp(id, name, icon, "", createdAt, updatedAt))
         }
+        return true
     }
 
     /**

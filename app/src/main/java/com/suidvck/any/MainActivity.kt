@@ -677,6 +677,10 @@ class MainActivity : AppCompatActivity() {
             mediaPlaybackRequiresUserGesture = false
             loadWithOverviewMode = true
             useWideViewPort = true
+            // The browser only ever loads http(s) and in-memory mini-app documents. Leaving
+            // file:// reachable on API 24-29 lets a page probe the app's private directory.
+            // content:// stays enabled because the file-chooser uses it for uploads.
+            allowFileAccess = false
         }
         WebView.setWebContentsDebuggingEnabled(isDebuggable)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {

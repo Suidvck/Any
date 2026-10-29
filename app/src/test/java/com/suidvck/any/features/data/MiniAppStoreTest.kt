@@ -102,6 +102,20 @@ class MiniAppStoreTest {
     }
 
     @Test
+    fun `index with the wrong shape is quarantined and rebuilt from html files`() {
+        val folder = dir()
+        folder.mkdirs()
+        File(folder, "keepme.html").writeText(html("Keep Me"))
+        File(folder, "index.json").writeText("""{"version":1,"apps":null}""")
+
+        val apps = MiniAppStore(folder).list()
+
+        assertEquals(1, apps.size)
+        assertEquals("keepme", apps[0].id)
+        assertTrue(folder.listFiles().orEmpty().any { it.name.startsWith("index.json.corrupt-") })
+    }
+
+    @Test
     fun `save returns null and keeps the old state when the html cannot be written`() {
         // Make the store directory a regular file so every write into it must fail.
         val blocker = File(temp.root, "blocked")
