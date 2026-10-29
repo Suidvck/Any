@@ -17,6 +17,9 @@
     <string name="no_api_key">ยังไม่ได้ตั้งค่า API key — พิมพ์ /setting เพื่อใส่ key ก่อนนะครับ</string>
     <string name="max_context">Max context (จำนวนข้อความที่ส่งให้ AI)</string>
     <string name="chat_cleared">ล้างประวัติแชทแล้วครับ</string>
+    <string name="chat_busy">กำลังตอบอยู่ — รอสักครู่แล้วลองอีกครั้งครับ</string>
+    <string name="save_failed">บันทึกแอพไม่สำเร็จ พื้นที่เก็บข้อมูลอาจเต็มหรือถูกปฏิเสธการเขียน</string>
+    <string name="edit_too_large">แอพนี้ใหญ่เกินกว่าจะแก้ไขผ่านแชทได้ (จำกัด %1$d พันตัวอักษร) — สร้างแอพใหม่แทนได้ครับ</string>
     <string name="saved">บันทึกการตั้งค่าแล้ว ลองพิมพ์สั่งได้เลย</string>
     <string name="error_prefix">ผิดพลาด: </string>
     <string name="loading_dots">กำลังโหลด…</string>

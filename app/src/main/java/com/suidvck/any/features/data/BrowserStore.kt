@@ -2,6 +2,7 @@ package com.suidvck.any.features.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -116,7 +117,19 @@ class TabStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val root = file.readObject() ?: return
+        val root = when (val read = file.readJson()) {
+            JsonFile.Read.Missing -> return
+            JsonFile.Read.Corrupt -> {
+                val preserved = file.quarantine()
+                Log.w("TabStore", "corrupt tabs quarantined at ${preserved?.name ?: "?"}")
+                return
+            }
+            is JsonFile.Read.Ok -> try {
+                JSONObject(read.text)
+            } catch (_: Throwable) {
+                return
+            }
+        }
         currentId = if (root.isNull("currentId")) {
             null
         } else {
@@ -332,7 +345,19 @@ class HistoryStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val root = file.readObject() ?: return
+        val root = when (val read = file.readJson()) {
+            JsonFile.Read.Missing -> return
+            JsonFile.Read.Corrupt -> {
+                val preserved = file.quarantine()
+                Log.w("HistoryStore", "corrupt history quarantined at ${preserved?.name ?: "?"}")
+                return
+            }
+            is JsonFile.Read.Ok -> try {
+                JSONObject(read.text)
+            } catch (_: Throwable) {
+                return
+            }
+        }
         val array = root.optJSONArray("entries") ?: return
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue

@@ -1,6 +1,7 @@
 package com.suidvck.any.features.data
 
 import android.content.Context
+import android.util.Log
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -79,7 +80,19 @@ class AutomationStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val root = file.readObject() ?: return
+        val root = when (val read = file.readJson()) {
+            JsonFile.Read.Missing -> return
+            JsonFile.Read.Corrupt -> {
+                val preserved = file.quarantine()
+                Log.w("AutomationStore", "corrupt automations quarantined at ${preserved?.name ?: "?"}")
+                return
+            }
+            is JsonFile.Read.Ok -> try {
+                JSONObject(read.text)
+            } catch (_: Throwable) {
+                return
+            }
+        }
         val array = root.optJSONArray("automations") ?: return
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue

@@ -6,16 +6,32 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Crash-proof JSON storage for a single file.
+ * Crash-safe JSON storage for a single file.
  *
- * Reads are best-effort: a missing, unreadable, empty, or malformed file simply yields null.
- * Writes are atomic (temporary file in the same directory, then rename) and are serialized
- * process-wide so concurrent stores cannot interleave temporary files on disk.
+ * Reads deliberately distinguish **missing** from **corrupt**. Treating a damaged file as
+ * "empty" is dangerous: the next persist would write the empty state back and destroy every
+ * record that was in the file. Stores must inspect [Read] and choose a recovery path instead
+ * of continuing with an empty list.
+ *
+ * Writes are atomic (temporary file in the same directory, fsync, rename) and serialised
+ * process-wide. There is intentionally no in-place fallback when the rename fails: leaving the
+ * previous file untouched is always better than truncating it with a partial write.
  */
 internal class JsonFile(file: File) {
 
     private val target: File = file
     private val lock = Any()
+
+    sealed class Read {
+        /** The file does not exist (or was never written). */
+        object Missing : Read()
+
+        /** The file exists and contains parseable JSON. [text] is the raw content. */
+        data class Ok(val text: String) : Read()
+
+        /** The file exists but is empty, unreadable, or not valid JSON. */
+        object Corrupt : Read()
+    }
 
     fun exists(): Boolean = try {
         target.isFile
@@ -23,29 +39,17 @@ internal class JsonFile(file: File) {
         false
     }
 
+    fun readJson(): Read = synchronized(lock) {
+        parseFile(target)
+    }
+
+    /**
+     * Reads a plain text file (for example a mini-app's HTML). A missing or unreadable file
+     * simply yields null; HTML has no structural integrity to protect beyond its presence.
+     */
     fun readText(): String? = synchronized(lock) {
         try {
-            if (!target.isFile) null else target.readText(Charsets.UTF_8)
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    fun readObject(): JSONObject? {
-        val text = readText()
-        if (text.isNullOrBlank()) return null
-        return try {
-            JSONObject(text)
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    fun readArray(): JSONArray? {
-        val text = readText()
-        if (text.isNullOrBlank()) return null
-        return try {
-            JSONArray(text)
+            if (target.isFile) target.readText(Charsets.UTF_8) else null
         } catch (_: Throwable) {
             null
         }
@@ -67,50 +71,77 @@ internal class JsonFile(file: File) {
         }
     }
 
+    /**
+     * Moves a damaged file aside so a later write cannot destroy the original bytes, while
+     * keeping it available for manual recovery. Returns the preserved file, or null when
+     * there was nothing to move.
+     */
+    fun quarantine(): File? = synchronized(lock) {
+        if (!target.isFile) return null
+        val stamp = System.currentTimeMillis()
+        val preserved = File(target.parentFile, target.name + ".corrupt-" + stamp)
+        try {
+            if (target.renameTo(preserved)) preserved else null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun parseFile(file: File): Read {
+        if (!file.isFile) return Read.Missing
+        val text = try {
+            file.readText(Charsets.UTF_8)
+        } catch (_: Throwable) {
+            return Read.Corrupt
+        }
+        if (text.isBlank()) return Read.Corrupt
+        val valid = try {
+            JSONObject(text)
+            true
+        } catch (_: Throwable) {
+            try {
+                JSONArray(text)
+                true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        return if (valid) Read.Ok(text) else Read.Corrupt
+    }
+
     companion object {
         private val writeLock = Any()
 
         fun atomicWrite(target: File, text: String): Boolean = synchronized(writeLock) {
-            val dir = target.parentFile
-            if (dir == null) {
-                false
-            } else {
-                var temp: File? = null
-                try {
-                    if (!dir.isDirectory) {
-                        dir.mkdirs()
-                    }
-                    if (!dir.isDirectory) {
-                        false
-                    } else {
-                        val rawPrefix = target.name + "."
-                        val prefix = if (rawPrefix.length < 3) "tmp-$rawPrefix" else rawPrefix
-                        val tmp = File.createTempFile(prefix, ".tmp", dir)
-                        temp = tmp
-                        FileOutputStream(tmp).use { out ->
-                            out.write(text.toByteArray(Charsets.UTF_8))
-                            out.flush()
-                            try {
-                                out.fd.sync()
-                            } catch (_: Throwable) {
-                                // Not every filesystem supports fsync; the rename still protects us.
-                            }
-                        }
-                        if (!tmp.renameTo(target)) {
-                            // Last-resort fallback for filesystems that cannot rename over a file.
-                            target.writeText(text, Charsets.UTF_8)
-                            tmp.delete()
-                        }
-                        true
-                    }
-                } catch (_: Throwable) {
-                    false
-                } finally {
+            val dir = target.parentFile ?: return false
+            var temp: File? = null
+            try {
+                if (!dir.isDirectory) dir.mkdirs()
+                if (!dir.isDirectory) return false
+
+                val rawPrefix = target.name + "."
+                val prefix = if (rawPrefix.length < 3) "tmp-$rawPrefix" else rawPrefix
+                val tmp = File.createTempFile(prefix, ".tmp", dir)
+                temp = tmp
+                FileOutputStream(tmp).use { out ->
+                    out.write(text.toByteArray(Charsets.UTF_8))
+                    out.flush()
                     try {
-                        temp?.delete()
+                        out.fd.sync()
                     } catch (_: Throwable) {
-                        // Ignore cleanup failures.
+                        // Not every filesystem supports fsync; the rename still protects us.
                     }
+                }
+                // No in-place fallback on purpose. A failed rename returns false and leaves
+                // the previous file intact instead of replacing it with a partial write.
+                tmp.renameTo(target)
+            } catch (_: Throwable) {
+                false
+            } finally {
+                try {
+                    temp?.delete()
+                } catch (_: Throwable) {
+                    // Ignore cleanup failures.
                 }
             }
         }

@@ -3,6 +3,7 @@ package com.suidvck.any.features.data
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import java.io.File
 import java.util.UUID
 import org.json.JSONArray
@@ -136,9 +137,19 @@ class ChatStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val text = file.readText()
-        if (text.isNullOrBlank()) return
+        when (val read = file.readJson()) {
+            JsonFile.Read.Missing -> return
+            is JsonFile.Read.Ok -> parseLoaded(read.text)
+            JsonFile.Read.Corrupt -> {
+                // Keep the damaged file instead of silently starting from zero and then
+                // overwriting it with an empty conversation list.
+                val preserved = file.quarantine()
+                Log.w(TAG, "corrupt conversations quarantined at ${preserved?.name ?: "?"}")
+            }
+        }
+    }
 
+    private fun parseLoaded(text: String) {
         val objectRoot = try {
             JSONObject(text)
         } catch (_: Throwable) {
@@ -330,5 +341,6 @@ class ChatStore(context: Context) {
         const val MAX_MESSAGES = 200
         const val SAVE_DELAY_MS = 400L
         val WHITESPACE_REGEX = Regex("\\s+")
+        const val TAG = "ChatStore"
     }
 }

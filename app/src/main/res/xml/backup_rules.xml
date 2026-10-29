@@ -1,13 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup rules for Android 11 and lower (API < 31).
+
+    The AI provider key lives in the "settings" SharedPreferences and must never
+    leave the device through cloud backup or device transfer. Conversations,
+    browsing history, open tabs and automations are private, so they are excluded
+    too. Saved mini-apps (files/miniapps) and the home dock are intentionally kept.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="settings.xml" />
+    <exclude domain="file" path="conversations.json" />
+    <exclude domain="file" path="history.json" />
+    <exclude domain="file" path="tabs.json" />
+    <exclude domain="file" path="automations.json" />
 </full-backup-content>

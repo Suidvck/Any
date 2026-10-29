@@ -201,6 +201,11 @@ class MainActivity : AppCompatActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.US)
 
+    /** True only for debug builds; QA-only intent hooks must never run in a release build. */
+    private val isDebuggable: Boolean by lazy {
+        (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
     private val clockTick = object : Runnable {
         override fun run() {
             // Stacked pixel clock: hours on the first line, minutes on the second.
@@ -217,7 +222,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val codeBlockRegex = Regex("```(html-overlay|html)?\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
+    private val codeBlockRegex = Regex("```(html-overlay|html)?[ \\t]*\\r?\\n([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
     private val openUrlRegex = Regex("OPEN_URL:\\s*(https?://\\S+)")
 
     private val backCallback = object : OnBackPressedCallback(false) {
@@ -398,15 +403,19 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        Log.d("AnyQA", "onNewIntent extras=${intent.extras}")
+        if (isDebuggable) Log.d("AnyQA", "onNewIntent extras=${intent.extras}")
         handleQaExtras(intent)
     }
 
     private fun handleQaExtras(intent: Intent?) {
         if (intent == null || isFinishing) return
+        // These hooks can inject JavaScript, load any URL and spend the user's API credits.
+        // They exist for on-device QA only and must never run in a release build, where the
+        // activity is exported and any installed app could send them.
+        if (!isDebuggable) return
         Log.d("AnyQA", "handleQaExtras extras=${intent.extras}")
         val autoPrompt = intent.getStringExtra("autoPrompt")
-        val openUrl = intent.getStringExtra("openUrl")
+        val openUrl = httpUrlOnly(intent.getStringExtra("openUrl"))
         val overlayHtml = intent.getStringExtra("overlayHtml")
         val navTest = intent.getStringExtra("navTest")
         val openAppId = intent.getStringExtra("openAppId")
@@ -599,7 +608,7 @@ class MainActivity : AppCompatActivity() {
             loadWithOverviewMode = true
             useWideViewPort = true
         }
-        WebView.setWebContentsDebuggingEnabled(true)
+        WebView.setWebContentsDebuggingEnabled(isDebuggable)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             // Fool pages (e.g. YouTube) into thinking they stay visible, so they do
             // not pause playback when the app is hidden or the screen turns off.
@@ -1019,15 +1028,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendMessage() {
         val text = input.text.toString().trim()
-        if ((text.isEmpty() && pendingImage == null) || generating) return
-        // Typing /setting (or /settings) opens the AI settings dialog.
+        // Slash commands are handled before the "already generating" guard so they never look
+        // like a dead button while a reply is streaming.
         if (text.equals("/setting", ignoreCase = true) || text.equals("/settings", ignoreCase = true)) {
             input.setText("")
             showSettings()
             return
         }
-        // Typing /clear wipes the whole conversation.
         if (text.equals("/clear", ignoreCase = true)) {
+            if (generating) {
+                Toast.makeText(this, R.string.chat_busy, Toast.LENGTH_SHORT).show()
+                return
+            }
             input.setText("")
             history.clear()
             messagesContainer.removeAllViews()
@@ -1037,6 +1049,7 @@ class MainActivity : AppCompatActivity() {
             addMessage(you = false, text = getString(R.string.chat_cleared))
             return
         }
+        if ((text.isEmpty() && pendingImage == null) || generating) return
 
         val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
         val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
@@ -1044,6 +1057,18 @@ class MainActivity : AppCompatActivity() {
         val key = prefs.getString("key", "").orEmpty()
         if (key.isBlank()) {
             addMessage(you = false, text = getString(R.string.no_api_key))
+            return
+        }
+
+        // Resolve the edit target exactly once, at send time. Reading currentAppId when the
+        // reply arrives is unsafe: the user may have opened another app in the meantime.
+        val editingId = if (editMode) currentAppId else null
+        val editApp = editingId?.let { miniApps.get(it) }
+        if (editApp != null && editApp.html.length > MAX_EDIT_HTML) {
+            addMessage(
+                you = false,
+                text = getString(R.string.edit_too_large, MAX_EDIT_HTML / 1000)
+            )
             return
         }
 
@@ -1058,7 +1083,6 @@ class MainActivity : AppCompatActivity() {
         if (handsFree) voiceMode.stopListening()
 
         // When editing a saved app, send its current HTML as extra system context.
-        val editApp = if (editMode) currentAppId?.let { miniApps.get(it) } else null
         val systemExtra = editApp?.let { AiPrompts.editSystem(it.html) }
 
         generating = true
@@ -1159,7 +1183,7 @@ class MainActivity : AppCompatActivity() {
                         )
                     } else {
                         history += "assistant" to full
-                        handleReply(full)
+                        handleReply(full, editingId)
                     }
                 },
                 onError = { e ->
@@ -1172,15 +1196,31 @@ class MainActivity : AppCompatActivity() {
         askAi(systemExtra)
     }
 
+    /** True for a fence that should be treated as a mini-app document. */
+    private fun isHtmlBlock(match: MatchResult): Boolean {
+        when (match.groupValues[1].lowercase()) {
+            "html" -> return true
+            "html-overlay" -> return false
+        }
+        // An untagged fence only counts when it clearly holds a document. This keeps
+        // ```js / ```python answers in the chat instead of saving them as mini-apps.
+        val body = match.groupValues[2].trimStart()
+        return body.startsWith("<!DOCTYPE", ignoreCase = true) ||
+            body.startsWith("<html", ignoreCase = true)
+    }
+
     /** Removes the HTML/overlay code blocks and OPEN_URL markers from a reply. */
     private fun visiblePart(reply: String): String {
         var visible = reply
-        codeBlockRegex.findAll(reply).forEach { visible = visible.replace(it.value, "") }
-        openUrlRegex.find(reply)?.let { visible = visible.replace(it.value, "") }
+        codeBlockRegex.findAll(reply).forEach { match ->
+            val overlay = match.groupValues[1].equals("html-overlay", ignoreCase = true)
+            if (overlay || isHtmlBlock(match)) visible = visible.replace(match.value, "")
+        }
+        openUrlRegex.findAll(reply).forEach { visible = visible.replace(it.value, "") }
         return visible.replace("**", "").replace("`", "").trim()
     }
 
-    private fun handleReply(reply: String) {
+    private fun handleReply(reply: String, editingId: String?) {
         val urlMatch = openUrlRegex.find(reply)
         val codeMatches = codeBlockRegex.findAll(reply).toList()
         val visible = visiblePart(reply)
@@ -1189,7 +1229,21 @@ class MainActivity : AppCompatActivity() {
             it.groupValues[1].equals("html-overlay", ignoreCase = true)
         }
         val overlayHtml = overlayMatch?.groupValues?.get(2)?.trim()
-        val html = codeMatches.firstOrNull { it !== overlayMatch }?.groupValues?.get(2)?.trim()
+        val fencedHtml = codeMatches.firstOrNull { isHtmlBlock(it) }?.groupValues?.get(2)?.trim()
+        // Some models answer with a bare document and no fence at all.
+        val bareHtml = if (fencedHtml == null && overlayHtml == null) {
+            val trimmed = reply.trim()
+            if (trimmed.startsWith("<!DOCTYPE", ignoreCase = true) ||
+                trimmed.startsWith("<html", ignoreCase = true)
+            ) {
+                trimmed
+            } else {
+                null
+            }
+        } else {
+            null
+        }
+        val html = fencedHtml ?: bareHtml
         val url = urlMatch?.groupValues?.get(1)?.trimEnd(',', '.', ')', '"')
 
         if (visible.isNotEmpty()) addMessage(you = false, text = visible)
@@ -1197,12 +1251,19 @@ class MainActivity : AppCompatActivity() {
         when {
             !overlayHtml.isNullOrEmpty() -> showOverlay(overlayHtml)
             !html.isNullOrEmpty() -> {
-                // Auto-save: a new reply creates an app, an edit updates the open app.
-                val editingId = if (editMode) currentAppId else null
+                // Auto-save: a new reply creates an app, an edit updates the app that was open
+                // when the request was sent (not whatever happens to be open now).
                 val app = if (editingId != null) miniApps.save(html, id = editingId)
                 else miniApps.save(html)
-                refreshRecentApps()
-                showApp(app)
+                if (app == null) {
+                    addMessage(
+                        you = false,
+                        text = getString(R.string.error_prefix) + getString(R.string.save_failed)
+                    )
+                } else {
+                    refreshRecentApps()
+                    showApp(app)
+                }
             }
             url != null -> showPreview(url = url)
         }
@@ -1210,7 +1271,7 @@ class MainActivity : AppCompatActivity() {
         val display = visible.ifBlank {
             when {
                 !html.isNullOrEmpty() ->
-                    if (editMode) "อัปเดตแอพให้แล้ว" else "สร้างแอพให้แล้ว"
+                    if (editingId != null) "อัปเดตแอพให้แล้ว" else "สร้างแอพให้แล้ว"
                 url != null -> "เปิดหน้าที่ขอให้แล้ว"
                 !overlayHtml.isNullOrEmpty() -> "แสดงผลให้แล้ว"
                 else -> "ดำเนินการแล้ว"
@@ -1427,7 +1488,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPreview(html: String? = null, url: String? = null) {
         if (html != null) {
-            showApp(miniApps.save(html))
+            val app = miniApps.save(html)
+            if (app == null) {
+                addMessage(
+                    you = false,
+                    text = getString(R.string.error_prefix) + getString(R.string.save_failed)
+                )
+            } else {
+                showApp(app)
+            }
+            return
+        }
+        // Everything that reaches the preview from outside the app (dock, automations, AI
+        // replies, intents) goes through the same http(s)-only check as page navigation.
+        val target = httpUrlOnly(url)
+        if (url != null && target == null) {
+            showBlockedToast()
             return
         }
         applyWebToolsPrefs()
@@ -1437,10 +1513,10 @@ class MainActivity : AppCompatActivity() {
         previewContainer.isVisible = true
         previewContainer.alpha = 0f
         previewContainer.animate().alpha(1f).setDuration(200).start()
-        if (url != null) {
-            addTask(hostOf(url), getString(R.string.loading_dots))
-            browserTabs.open(url, null, hostOf(url))
-            webView.loadUrl(url)
+        if (target != null) {
+            addTask(hostOf(target), getString(R.string.loading_dots))
+            browserTabs.open(target, null, hostOf(target))
+            webView.loadUrl(target)
         }
         hasContent = true
         renderRunning()
@@ -1449,6 +1525,18 @@ class MainActivity : AppCompatActivity() {
         if (sheetOpen) closeSheet()
         updateBack()
         updateWebToolsVisibility()
+    }
+
+    /** Returns [raw] when it is a normal http(s) URL, otherwise null. */
+    private fun httpUrlOnly(raw: String?): String? {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return null
+        return try {
+            val scheme = android.net.Uri.parse(value).scheme?.lowercase()
+            if (scheme == "http" || scheme == "https") value else null
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /** Opens a saved mini-app on its own origin so its localStorage stays isolated. */
@@ -2510,6 +2598,13 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val HOST_MINIAPP = "miniapp"
         private const val DEFAULT_MAX_CONTEXT = 40
+
+        /**
+         * Largest saved HTML document that may be sent back for an edit. The edit prompt cannot
+         * carry more than this without silently truncating the app and overwriting it with an
+         * incomplete reconstruction, so oversized apps are refused with an explanation instead.
+         */
+        private const val MAX_EDIT_HTML = 60_000
 
         // Injected at document start in every frame: pretend the page is always
         // visible (so players like YouTube do not pause on screen-off/background)

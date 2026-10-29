@@ -1,6 +1,7 @@
 package com.suidvck.any.features.data
 
 import android.content.Context
+import android.util.Log
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -20,10 +21,12 @@ data class MiniApp(
  * Stores the mini-app library as a small index (miniapps/index.json) plus one atomically
  * written HTML file per app (miniapps/<id>.html).
  */
-class MiniAppStore(context: Context) {
+class MiniAppStore(private val dir: File) {
 
-    private val appContext: Context = context.applicationContext ?: context
-    private val dir = File(appContext.filesDir, "miniapps")
+    constructor(context: Context) : this(
+        File(context.applicationContext?.filesDir ?: context.filesDir, "miniapps")
+    )
+
     private val indexFile = JsonFile(File(dir, "index.json"))
     private val lock = Any()
 
@@ -42,12 +45,17 @@ class MiniAppStore(context: Context) {
         apps.firstOrNull { it.id == id }?.let { app -> app.copy(html = htmlFor(app.id)) }
     }
 
+    /**
+     * Saves an app. Returns null when the HTML file could not be written, in which case the
+     * index is deliberately left untouched so a failed save can never replace a working app
+     * with an entry pointing at a missing file.
+     */
     fun save(
         html: String,
         name: String? = null,
         icon: String? = null,
         id: String? = null
-    ): MiniApp = synchronized(lock) {
+    ): MiniApp? = synchronized(lock) {
         ensureLoaded()
         val now = System.currentTimeMillis()
         val wantedId = id?.trim()?.takeIf { it.isNotEmpty() }
@@ -63,8 +71,12 @@ class MiniAppStore(context: Context) {
         val app = MiniApp(finalId, finalName, finalIcon, html, finalCreatedAt, now)
 
         // Write the HTML first, then publish the index entry so a failed index write never
-        // leaves a half-written page behind.
-        JsonFile(htmlFile(finalId)).write(html)
+        // leaves a half-written page behind. If the HTML cannot be written, stop here:
+        // publishing an index entry without its file produces an app that opens blank.
+        if (!JsonFile(htmlFile(finalId)).write(html)) {
+            Log.e(TAG, "could not write html for $finalId; keeping previous state")
+            return@synchronized null
+        }
         htmlCache[finalId] = html
         apps.removeAll { it.id == finalId }
         apps.add(app)
@@ -122,7 +134,26 @@ class MiniAppStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val root = indexFile.readObject() ?: return
+        when (val read = indexFile.readJson()) {
+            is JsonFile.Read.Ok -> parseIndex(read.text)
+            JsonFile.Read.Missing -> rebuildFromDisk("missing")
+            JsonFile.Read.Corrupt -> {
+                // Preserve the damaged bytes for manual recovery, then rebuild the index from
+                // the per-app HTML files. Never start from an empty list and then persist it:
+                // that is what turns one damaged byte into a wiped library.
+                val preserved = indexFile.quarantine()
+                Log.w(TAG, "corrupt index quarantined at ${preserved?.name ?: "?"}")
+                rebuildFromDisk("corrupt")
+            }
+        }
+    }
+
+    private fun parseIndex(text: String) {
+        val root = try {
+            JSONObject(text)
+        } catch (_: Throwable) {
+            return
+        }
         val array = root.optJSONArray("apps") ?: return
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue
@@ -138,6 +169,49 @@ class MiniAppStore(context: Context) {
                 ?: System.currentTimeMillis()
             val updatedAt = obj.optLong("updatedAt", createdAt).takeIf { it > 0L } ?: createdAt
             apps.add(MiniApp(id, name, icon, "", createdAt, updatedAt))
+        }
+    }
+
+    /**
+     * Recreates index entries from the HTML files that are still on disk. The file name is the
+     * app id, so previously saved apps remain openable even when index.json is gone. Only runs
+     * when the index is missing or corrupt; a healthy index is never second-guessed.
+     */
+    private fun rebuildFromDisk(reason: String) {
+        val files = try {
+            dir.listFiles()
+        } catch (_: Throwable) {
+            null
+        } ?: return
+        for (file in files) {
+            if (!file.isFile) continue
+            if (!file.name.endsWith(".html", ignoreCase = true)) continue
+            val id = file.name.dropLast(HTML_EXTENSION.length)
+            if (id.isBlank() || id == "index") continue
+            if (apps.any { it.id == id }) continue
+            val html = try {
+                file.readText(Charsets.UTF_8)
+            } catch (_: Throwable) {
+                continue
+            }
+            if (html.isBlank()) continue
+            val stamp = file.lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()
+            apps.add(
+                MiniApp(
+                    id = id,
+                    name = suggestName(html, DEFAULT_NAME),
+                    icon = suggestIcon(html),
+                    html = "",
+                    createdAt = stamp,
+                    updatedAt = stamp
+                )
+            )
+        }
+        if (apps.isNotEmpty()) {
+            // Repersisting also resumes normal writes: leaving the index missing would make the
+            // next corrupt read look like a first run all over again.
+            persistLocked()
+            Log.w(TAG, "rebuilt $reason index with ${apps.size} app(s) from html files")
         }
     }
 
@@ -164,7 +238,7 @@ class MiniAppStore(context: Context) {
         return text
     }
 
-    private fun htmlFile(id: String): File = File(dir, safeFileName(id) + ".html")
+    private fun htmlFile(id: String): File = File(dir, safeFileName(id) + HTML_EXTENSION)
 
     private fun newId(): String {
         var id: String
@@ -200,6 +274,8 @@ class MiniAppStore(context: Context) {
     }
 
     private companion object {
+        const val TAG = "MiniAppStore"
+        const val HTML_EXTENSION = ".html"
         const val DEFAULT_NAME = "แอพใหม่"
         const val DEFAULT_ICON = "cube"
 

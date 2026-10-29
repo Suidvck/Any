@@ -2,6 +2,7 @@ package com.suidvck.any.features.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import java.io.File
 import java.util.Locale
 import org.json.JSONArray
@@ -50,7 +51,20 @@ class DockStore(context: Context) {
     private fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val root = file.readObject() ?: return
+        val text = when (val read = file.readJson()) {
+            JsonFile.Read.Missing -> return
+            JsonFile.Read.Corrupt -> {
+                val preserved = file.quarantine()
+                Log.w("DockStore", "corrupt dock quarantined at ${preserved?.name ?: "?"}")
+                return
+            }
+            is JsonFile.Read.Ok -> read.text
+        }
+        val root = try {
+            JSONObject(text)
+        } catch (_: Throwable) {
+            return
+        }
         val array = root.optJSONArray("items") ?: return
         val parsed = ArrayList<DockItem>()
         for (i in 0 until array.length()) {
