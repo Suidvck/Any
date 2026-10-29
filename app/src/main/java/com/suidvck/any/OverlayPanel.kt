@@ -42,7 +42,22 @@ class OverlayPanel(private val context: Context, private val parent: FrameLayout
         web.isHorizontalScrollBarEnabled = false
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
+        web.settings.allowFileAccess = false
+        web.settings.allowContentAccess = false
         web.webViewClient = object : WebViewClient() {
+            // The overlay is a self-contained widget. It must never navigate the panel to a
+            // remote page or hand a custom scheme to the OS, which would turn a generated
+            // overlay into a phishing surface inside the app.
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: android.webkit.WebResourceRequest
+            ): Boolean {
+                val uri = request.url
+                val scheme = uri.scheme?.lowercase()
+                val sameOrigin = uri.host == "overlay.local" && (scheme == "https" || scheme == "http")
+                return !sameOrigin
+            }
+
             override fun onPageFinished(view: WebView, url: String?) {
                 view.post { measureContent() }
             }

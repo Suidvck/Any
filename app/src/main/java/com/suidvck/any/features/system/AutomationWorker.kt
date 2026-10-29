@@ -46,7 +46,7 @@ class AutomationWorker(context: Context, params: WorkerParameters) : Worker(cont
                     // Re-enqueue the next occurrence (daily). The scheduler
                     // computes the delay from "now", so this always lands on the
                     // next HH:mm, today or tomorrow.
-                    AutomationScheduler.schedule(app, automation)
+                    AutomationScheduler.scheduleNext(app, automation)
                     Result.success()
                 }
             }
@@ -117,6 +117,9 @@ class AutomationWorker(context: Context, params: WorkerParameters) : Worker(cont
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // The id lets the app re-check that this automation still exists and is enabled
+            // before acting, so a notification left over from a deleted item does nothing.
+            putExtra(EXTRA_AUTOMATION_ID, a.id)
             when (a.kind) {
                 KIND_URL -> putExtra(EXTRA_OPEN_URL, a.value)
                 KIND_CHAT -> putExtra(EXTRA_OPEN_CHAT, true)
@@ -143,6 +146,9 @@ class AutomationWorker(context: Context, params: WorkerParameters) : Worker(cont
         const val EXTRA_AUTO_PROMPT = "autoPrompt"
         const val EXTRA_OPEN_APP_ID = "openAppId"
 
+        /** Identifies which automation a notification tap belongs to. */
+        const val EXTRA_AUTOMATION_ID = "automationId"
+
         internal const val KIND_URL = "url"
         internal const val KIND_CHAT = "chat"
         internal const val KIND_PROMPT = "prompt"
@@ -151,7 +157,7 @@ class AutomationWorker(context: Context, params: WorkerParameters) : Worker(cont
         private const val TAG = "AutomationWorker"
         private val ACCENT = 0xFF5F6CF5.toInt()
 
-        private fun notificationId(id: String): Int = ("auto_$id").hashCode() and 0x7FFFFFFF
+        internal fun notificationId(id: String): Int = ("auto_$id").hashCode() and 0x7FFFFFFF
     }
 }
 

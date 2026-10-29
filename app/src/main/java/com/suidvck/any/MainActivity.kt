@@ -100,6 +100,7 @@ import com.suidvck.any.features.library.RecentAppsRow
 import com.suidvck.any.features.system.AppLock
 import com.suidvck.any.features.system.AutomationScheduler
 import com.suidvck.any.features.system.AutomationSheet
+import com.suidvck.any.features.system.AutomationWorker
 import com.suidvck.any.features.system.ExtrasMenu
 import com.suidvck.any.ui.AnyChrome
 import com.suidvck.any.ui.ChoiceSheet
@@ -379,10 +380,12 @@ class MainActivity : AppCompatActivity() {
         AutomationScheduler.rescheduleAll(this)
         Updater.check(this, silent = true)
 
-        // QA hooks: `--ez openChat true` opens the sheet; `--es autoPrompt "<text>"`
-        // opens the sheet and sends that prompt automatically; `--ez voice true`
-        // starts voice listening as if the chat ring was long-pressed.
-        root.postDelayed({ handleQaExtras(intent) }, 450)
+        // Automation notification taps are a normal product feature and must work in a release
+        // build, unlike the QA hooks below. A tap is only acted on when its automation still
+        // exists and is enabled.
+        root.postDelayed({
+            if (!handleAutomationIntent(intent)) handleQaExtras(intent)
+        }, 450)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -404,7 +407,58 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (isDebuggable) Log.d("AnyQA", "onNewIntent extras=${intent.extras}")
-        handleQaExtras(intent)
+        if (!handleAutomationIntent(intent)) handleQaExtras(intent)
+    }
+
+    /**
+     * Runs the action behind a tapped automation notification.
+     *
+     * Returns true when the intent belonged to an automation (whether or not it still exists),
+     * so the caller does not also feed the same extras to the QA-only handler. The stored
+     * automation is re-checked here: a notification can outlive the automation it was posted
+     * for, and tapping it must then do nothing at all.
+     */
+    private fun handleAutomationIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        val id = intent.getStringExtra(AutomationWorker.EXTRA_AUTOMATION_ID)?.trim()
+        if (id.isNullOrEmpty()) return false
+
+        // Consume the extras so a re-delivered intent (rotation, task restore) cannot fire twice.
+        intent.removeExtra(AutomationWorker.EXTRA_AUTOMATION_ID)
+        intent.removeExtra(AutomationWorker.EXTRA_OPEN_URL)
+        intent.removeExtra(AutomationWorker.EXTRA_OPEN_CHAT)
+        intent.removeExtra(AutomationWorker.EXTRA_AUTO_PROMPT)
+        intent.removeExtra(AutomationWorker.EXTRA_OPEN_APP_ID)
+        // Same keys are also read by the debug QA handler; clear them too.
+        intent.removeExtra("openUrl")
+        intent.removeExtra("openChat")
+        intent.removeExtra("autoPrompt")
+        intent.removeExtra("openAppId")
+
+        if (isFinishing) return true
+        val automation = runCatching {
+            AutomationStore(this).list().firstOrNull { it.id == id }
+        }.getOrNull()
+        if (automation == null || !automation.enabled) {
+            Log.i("AnyAutomation", "automation $id is gone or disabled; ignoring notification tap")
+            return true
+        }
+        when (automation.kind) {
+            AutomationWorker.KIND_URL -> {
+                val url = httpUrlOnly(automation.value)
+                if (url != null) root.post { showPreview(url = url) }
+            }
+            AutomationWorker.KIND_CHAT -> root.post { openSheet() }
+            AutomationWorker.KIND_PROMPT -> root.post {
+                openSheet()
+                input.setText(automation.value)
+                sendMessage()
+            }
+            AutomationWorker.KIND_APP -> root.post {
+                miniApps.get(automation.value)?.let { showApp(it) }
+            }
+        }
+        return true
     }
 
     private fun handleQaExtras(intent: Intent?) {
@@ -494,15 +548,14 @@ class MainActivity : AppCompatActivity() {
         refreshRecentApps()
         evalJs("window.__anyForcePlay=false")
         evalJs(CLEAR_PIP_ZOOM_JS)
-        if (hasContent) startVideoPolling()
+        if (hasContent && previewContainer.isVisible) startVideoPolling()
     }
 
     override fun onStop() {
         super.onStop()
         // Screen off / app backgrounded: stop polling (nothing to update) but keep
         // whatever was playing alive if the site tries to pause itself.
-        polling = false
-        ui.removeCallbacks(videoPoll)
+        stopVideoPolling()
         if (hasContent && lastPlaying) {
             evalJs(
                 "window.__anyForcePlay=true;var v=document.querySelector('video,audio');" +
@@ -518,9 +571,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // A repeating postDelayed runnable keeps the destroyed activity (and its whole view
+        // tree) reachable for as long as it keeps reposting itself.
+        ui.removeCallbacks(clockTick)
+        stopVideoPolling()
         stopVoiceListening()
         if (::voiceMode.isInitialized) runCatching { voiceMode.release() }
         if (::chatStore.isInitialized) chatStore.saveAllNow()
+
+        // WebView holds a renderer process, JS timers and native callbacks. Without an explicit
+        // destroy every recreation (theme change, process restart) leaks one.
+        if (::webView.isInitialized) {
+            runCatching { webView.stopLoading() }
+            runCatching { webView.setDownloadListener(null) }
+            runCatching { webView.webChromeClient = null }
+            runCatching { ytAdBlockHandle?.remove() }
+            ytAdBlockHandle = null
+            runCatching { overlayPanel?.hide() }
+            runCatching { webView.removeAllViews() }
+            runCatching { webView.destroy() }
+        }
         super.onDestroy()
     }
 
@@ -808,6 +878,11 @@ class MainActivity : AppCompatActivity() {
             polling = true
             ui.post(videoPoll)
         }
+    }
+
+    private fun stopVideoPolling() {
+        polling = false
+        ui.removeCallbacks(videoPoll)
     }
 
     private fun pollOnce() {
@@ -1605,6 +1680,11 @@ class MainActivity : AppCompatActivity() {
         webView.stopLoading()
         previewContainer.isVisible = false
         overlayPanel?.hide()
+        // The poll used to keep running forever once a page had been opened, burning CPU/JS on
+        // the home screen. With nothing visible there is nothing to poll.
+        stopVideoPolling()
+        videoActive = false
+        lastPlaying = false
         updatePipState()
         updateBack()
         updateWebToolsVisibility()
@@ -1784,6 +1864,7 @@ class MainActivity : AppCompatActivity() {
         runCatching { setPictureInPictureParams(builder.build()) }
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
     private fun buildPipActions(): List<RemoteAction> {
         fun pi(action: String, code: Int): PendingIntent = PendingIntent.getActivity(
             this,
@@ -1843,6 +1924,12 @@ class MainActivity : AppCompatActivity() {
         mimeType: String?,
         contentLength: Long
     ) {
+        // A download URL arrives from page content. Only http(s) is something DownloadManager
+        // should fetch; file://, content:// and app-specific schemes are refused.
+        if (!URLUtil.isNetworkUrl(url)) {
+            Toast.makeText(this, R.string.download_blocked, Toast.LENGTH_SHORT).show()
+            return
+        }
         runCatching {
             val request = DownloadManager.Request(Uri.parse(url)).apply {
                 setMimeType(mimeType)

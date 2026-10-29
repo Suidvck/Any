@@ -9,6 +9,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Looper
 import android.text.InputType
 import android.text.TextUtils
@@ -484,7 +485,10 @@ class DockView @JvmOverloads constructor(
         background = fieldBackground()
         this.inputType = inputType
         setSingleLine(true)
-        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        // importantForAutofill was added in API 26; minSdk is 24.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        }
     }
 
     private fun normalize(source: List<DockItem>): List<DockItem> {

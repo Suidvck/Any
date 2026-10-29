@@ -49,6 +49,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    testOptions {
+        // Storage tests exercise real files; android.util.Log calls in the stores would
+        // otherwise throw "not mocked" in a plain JVM test.
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -60,6 +65,8 @@ dependencies {
     implementation("org.jsoup:jsoup:1.18.3")
     implementation(libs.material)
     testImplementation(libs.junit)
+    // android.jar only contains stubs of org.json, so storage tests need a real implementation.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }

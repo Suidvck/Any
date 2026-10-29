@@ -241,6 +241,21 @@ object AiClient {
                 var done = false
                 val jsonBody = StringBuilder()
                 var pendingData: StringBuilder? = null
+                // Providers signal a truncated or filtered answer here. Saving such a reply as a
+                // mini-app would replace the user's working app with an incomplete document.
+                var finishReason: String? = null
+
+                fun finishReply(full: String) {
+                    when (finishReason) {
+                        "length" -> finishErr(
+                            Exception("คำตอบถูกตัดเพราะยาวเกินขีดจำกัดของโมเดล — ลองแบ่งงานเป็นส่วนเล็กลง")
+                        )
+                        "content_filter" -> finishErr(
+                            Exception("ผู้ให้บริการบล็อกคำตอบนี้ด้วย content filter")
+                        )
+                        else -> finishOk(full)
+                    }
+                }
 
                 fun pushDelta() {
                     val now = SystemClock.uptimeMillis()
@@ -262,6 +277,9 @@ object AiClient {
                         return true
                     }
                     val choice = obj.optJSONArray("choices")?.optJSONObject(0)
+                    choice?.optString("finish_reason").orEmpty()
+                        .takeIf { it.isNotBlank() && it != "null" }
+                        ?.let { finishReason = it }
                     val delta = extractText(choice?.optJSONObject("delta"))
                     if (!delta.isNullOrEmpty()) {
                         acc.append(delta)
@@ -341,7 +359,7 @@ object AiClient {
                 if (done) {
                     val full = acc.toString()
                     if (full.isBlank()) finishErr(Exception("คำตอบว่างเปล่า (HTTP $code)"))
-                    else finishOk(full)
+                    else finishReply(full)
                     return@Thread
                 }
 
@@ -352,12 +370,12 @@ object AiClient {
                     val full = fullReply(raw)
                     when {
                         providerError != null -> finishErr(Exception("HTTP $code: $providerError"))
-                        !full.isNullOrBlank() -> finishOk(full)
+                        !full.isNullOrBlank() -> finishReply(full)
                         else -> finishErr(Exception("คำตอบว่างเปล่า (HTTP $code)"))
                     }
                 } else {
                     val full = acc.toString()
-                    if (full.isBlank()) finishErr(Exception("คำตอบว่างเปล่า (HTTP $code)")) else finishOk(full)
+                    if (full.isBlank()) finishErr(Exception("คำตอบว่างเปล่า (HTTP $code)")) else finishReply(full)
                 }
             } catch (e: Exception) {
                 val cancelled = e is InterruptedException || Thread.currentThread().isInterrupted

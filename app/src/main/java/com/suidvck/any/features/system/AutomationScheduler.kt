@@ -2,6 +2,7 @@ package com.suidvck.any.features.system
 
 import android.content.Context
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -31,6 +32,10 @@ object AutomationScheduler {
     /**
      * Re-syncs WorkManager with the stored automations: enabled ones get a
      * pending job, disabled ones are cancelled. Never throws.
+     *
+     * Uses [ExistingWorkPolicy.KEEP]: opening the app must not throw away a job that is
+     * already due (or held back by Doze) and re-target it to tomorrow. Only an explicit edit
+     * replaces the schedule.
      */
     fun rescheduleAll(context: Context) {
         val app = context.applicationContext
@@ -38,7 +43,7 @@ object AutomationScheduler {
             val items = AutomationStore(app).list()
             for (a in items) {
                 if (a.enabled) {
-                    schedule(app, a)
+                    schedule(app, a, ExistingWorkPolicy.KEEP)
                 } else {
                     cancel(app, a.id)
                 }
@@ -48,13 +53,20 @@ object AutomationScheduler {
         }
     }
 
-    /** Cancels the pending job of one automation (deleted or disabled). */
+    /** Cancels the pending job of one automation (deleted or disabled) and its notification. */
     fun cancel(context: Context, id: String) {
+        val app = context.applicationContext
         try {
-            WorkManager.getInstance(context.applicationContext)
-                .cancelUniqueWork(nameFor(id))
+            WorkManager.getInstance(app).cancelUniqueWork(nameFor(id))
         } catch (t: Throwable) {
             Log.w(TAG, "cancel failed for $id", t)
+        }
+        try {
+            // A notification that is already posted would otherwise stay tappable after the
+            // automation was deleted or disabled.
+            NotificationManagerCompat.from(app).cancel(AutomationWorker.notificationId(id))
+        } catch (t: Throwable) {
+            Log.w(TAG, "notification cancel failed for $id", t)
         }
     }
 
@@ -63,7 +75,11 @@ object AutomationScheduler {
      * The delay targets today's HH:mm when it is still in the future,
      * otherwise tomorrow's HH:mm.
      */
-    internal fun schedule(context: Context, a: Automation) {
+    internal fun schedule(
+        context: Context,
+        a: Automation,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE
+    ) {
         if (!a.enabled) {
             cancel(context, a.id)
             return
@@ -77,10 +93,18 @@ object AutomationScheduler {
                 .build()
 
             WorkManager.getInstance(context.applicationContext)
-                .enqueueUniqueWork(nameFor(a.id), ExistingWorkPolicy.REPLACE, request)
+                .enqueueUniqueWork(nameFor(a.id), policy, request)
         } catch (t: Throwable) {
             Log.w(TAG, "schedule failed for ${a.id}", t)
         }
+    }
+
+    /**
+     * Re-arms the daily chain from inside the running worker. APPEND_OR_REPLACE waits for the
+     * current job to finish instead of cancelling it with REPLACE.
+     */
+    internal fun scheduleNext(context: Context, a: Automation) {
+        schedule(context, a, ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 
     /**

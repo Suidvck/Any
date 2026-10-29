@@ -44,6 +44,7 @@
     <string name="voice_need_permission">ต้องอนุญาตให้ใช้ไมโครโฟนก่อนนะครับ</string>
     <string name="voice_unavailable">เครื่องนี้ยังไม่รองรับการฟังเสียงครับ</string>
     <string name="link_blocked">บล็อกการเปิดแอพอื่นไว้แล้วครับ</string>
+    <string name="download_blocked">ลิงก์ดาวน์โหลดนี้ไม่รองรับครับ</string>
     <string name="adblock_label">บล็อกโฆษณา / แทร็กเกอร์</string>
     <string name="web_search_label">ให้ AI ค้นหาเว็บ</string>
     <string name="web_search_checking">กำลังค้นหาเว็บ…</string>

@@ -96,7 +96,7 @@
                             android:padding="11dp"
                             android:scaleType="fitCenter"
                             android:src="@drawable/ic_prev"
-                            android:tint="@color/control_icon" />
+                            app:tint="@color/control_icon" />
 
                         <ImageButton
                             android:id="@+id/btn_playpause"
@@ -108,7 +108,7 @@
                             android:padding="13dp"
                             android:scaleType="fitCenter"
                             android:src="@drawable/ic_play"
-                            android:tint="@color/play_icon" />
+                            app:tint="@color/play_icon" />
 
                         <ImageButton
                             android:id="@+id/btn_next"
@@ -120,7 +120,7 @@
                             android:padding="11dp"
                             android:scaleType="fitCenter"
                             android:src="@drawable/ic_next"
-                            android:tint="@color/control_icon" />
+                            app:tint="@color/control_icon" />
                     </LinearLayout>
 
                     <Space
@@ -145,7 +145,7 @@
                             android:layout_height="16dp"
                             android:importantForAccessibility="no"
                             android:src="@drawable/ic_youtube"
-                            android:tint="@color/yt_pill_text" />
+                            app:tint="@color/yt_pill_text" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -325,7 +325,7 @@
                     android:padding="9dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_more"
-                    android:tint="@color/label_on_dark" />
+                    app:tint="@color/label_on_dark" />
 
                 <ImageButton
                     android:id="@+id/btn_home"
@@ -337,7 +337,7 @@
                     android:padding="8dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_home"
-                    android:tint="@color/label_on_dark" />
+                    app:tint="@color/label_on_dark" />
             </FrameLayout>
 
             <ScrollView
@@ -375,7 +375,7 @@
                     android:padding="10dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_attach"
-                    android:tint="@color/home_muted" />
+                    app:tint="@color/home_muted" />
 
                 <EditText
                     android:id="@+id/chat_input"
