@@ -112,7 +112,11 @@ object FaIcons {
         "bars" to "\uF0C9",
         "wand-magic-sparkles" to "\uE2CA",
         "power-off" to "\uF011",
-        "lightbulb" to "\uF0EB"
+        "lightbulb" to "\uF0EB",
+        "code" to "\uF121",
+        "database" to "\uF1C0",
+        "location-dot" to "\uF3C5",
+        "shield-halved" to "\uF3ED"
     )
 
     /** First code point of a legacy emoji -> Font Awesome icon name. */

@@ -38,6 +38,7 @@ object ExtrasMenu {
         Item("find", "magnifying-glass", R.string.system_menu_find_title, R.string.system_menu_find_sub),
         Item("automations", "bell", R.string.system_menu_automations_title, R.string.system_menu_automations_sub),
         Item("appearance", "palette", R.string.system_menu_appearance_title, R.string.system_menu_appearance_sub),
+        Item("permissions", "shield-halved", R.string.system_menu_permissions_title, R.string.system_menu_permissions_sub),
         Item("voice", "volume-high", R.string.system_menu_voice_title, R.string.system_menu_voice_sub),
         Item("lock", "lock", R.string.system_menu_lock_title, R.string.system_menu_lock_sub),
         Item("update", "cloud-arrow-up", R.string.system_menu_update_title, R.string.system_menu_update_sub),

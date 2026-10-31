@@ -38,6 +38,8 @@ import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.ConsoleMessage
+import android.webkit.GeolocationPermissions
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -97,6 +99,8 @@ import com.suidvck.any.features.home.DockView
 import com.suidvck.any.features.home.Updater
 import com.suidvck.any.features.library.LibrarySheet
 import com.suidvck.any.features.library.RecentAppsRow
+import com.suidvck.any.features.miniapp.MiniAppPermissions
+import com.suidvck.any.features.miniapp.MiniAppPermissionsSheet
 import com.suidvck.any.features.system.AppLock
 import com.suidvck.any.features.system.AutomationScheduler
 import com.suidvck.any.features.system.AutomationSheet
@@ -167,6 +171,15 @@ class MainActivity : AppCompatActivity() {
     private var micChip: TextView? = null
     private var handsFree = false
     private var appUnlocked = false
+
+    /**
+     * True while a saved/generated HTML app is loaded. Mini-app permissions only apply in
+     * this state so ordinary websites keep JavaScript and DOM storage.
+     */
+    @Volatile private var miniAppActive = false
+    private var pendingWebPermission: PermissionRequest? = null
+    private var pendingGeoOrigin: String? = null
+    private var pendingGeoCallback: GeolocationPermissions.Callback? = null
 
     private data class Task(val host: String, val title: String)
 
@@ -471,6 +484,7 @@ class MainActivity : AppCompatActivity() {
         val autoPrompt = intent.getStringExtra("autoPrompt")
         val openUrl = httpUrlOnly(intent.getStringExtra("openUrl"))
         val overlayHtml = intent.getStringExtra("overlayHtml")
+        val qaHtml = intent.getStringExtra("qaHtml")
         val navTest = intent.getStringExtra("navTest")
         val openAppId = intent.getStringExtra("openAppId")
         val editAppId = intent.getStringExtra("editAppId")
@@ -478,7 +492,31 @@ class MainActivity : AppCompatActivity() {
         val modelSearchBase = intent.getStringExtra("modelSearchBase")
         val runJs = intent.getStringExtra("runJs")
         val pipAction = intent.getStringExtra("pipAction")
+        val setMiniAppPermission = intent.getStringExtra("setMiniAppPermission")
         when {
+            !setMiniAppPermission.isNullOrBlank() -> root.post {
+                val parts = setMiniAppPermission.split('=', limit = 2)
+                val key = parts.getOrNull(0)?.trim().orEmpty()
+                val enabled = parts.getOrNull(1)?.trim().equals("true", ignoreCase = true)
+                if (key in setOf(
+                        MiniAppPermissions.JAVASCRIPT,
+                        MiniAppPermissions.STORAGE,
+                        MiniAppPermissions.NETWORK,
+                        MiniAppPermissions.DOWNLOADS,
+                        MiniAppPermissions.MEDIA,
+                        MiniAppPermissions.LOCATION
+                    )
+                ) {
+                    MiniAppPermissions.set(this, key, enabled)
+                    if (miniAppActive) applyMiniAppWebSettings()
+                    Log.d("AnyQA", "miniapp permission $key=$enabled")
+                }
+            }
+            intent.getBooleanExtra("resetMiniAppPermissions", false) -> root.post {
+                MiniAppPermissions.reset(this)
+                if (miniAppActive) applyMiniAppWebSettings()
+                Log.d("AnyQA", "miniapp permissions reset")
+            }
             !pipAction.isNullOrBlank() -> root.post { handlePipAction(pipAction) }
             !runJs.isNullOrBlank() -> root.post { evalJs(runJs) }
             !navTest.isNullOrBlank() -> root.post { handleNavigation(navTest, true) }
@@ -492,6 +530,7 @@ class MainActivity : AppCompatActivity() {
             }
             !openUrl.isNullOrBlank() -> root.post { showPreview(url = openUrl) }
             !overlayHtml.isNullOrBlank() -> root.post { showOverlay(overlayHtml) }
+            !qaHtml.isNullOrBlank() -> root.post { showPreview(html = qaHtml) }
             !openAppId.isNullOrBlank() -> root.post { miniApps.get(openAppId)?.let { showApp(it) } }
             !editAppId.isNullOrBlank() -> root.post { openLibrary(editAppId) }
             editDock >= 0 -> root.post {
@@ -517,6 +556,9 @@ class MainActivity : AppCompatActivity() {
                 Appearance.setGrayscale(this, intent.getBooleanExtra("grayscale", true))
             }
             intent.getBooleanExtra("appearanceMenu", false) -> root.post { Appearance.showSheet(this) }
+            intent.getBooleanExtra("miniappPermissions", false) -> root.post {
+                showMiniAppPermissions()
+            }
             intent.getBooleanExtra("timeSheet", false) -> root.post {
                 com.suidvck.any.ui.TimeSheet.show(this, 9, 30) { _, _ -> }
             }
@@ -592,6 +634,57 @@ class MainActivity : AppCompatActivity() {
             runCatching { webView.destroy() }
         }
         super.onDestroy()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_WEB_MEDIA -> {
+                val request = pendingWebPermission
+                pendingWebPermission = null
+                if (request == null) return
+                val granted = grantResults.isNotEmpty() &&
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                Log.d(
+                    "AnyQA",
+                    "web permission result code=$requestCode perms=${permissions.joinToString()} " +
+                        "granted=$granted"
+                )
+                if (granted && miniAppActive && MiniAppPermissions.isMediaEnabled(this)) {
+                    runCatching { request.grant(request.resources) }
+                } else {
+                    runCatching { request.deny() }
+                    Toast.makeText(this, R.string.miniapp_permission_denied, Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
+
+            REQUEST_WEB_LOCATION -> {
+                val origin = pendingGeoOrigin
+                val callback = pendingGeoCallback
+                pendingGeoOrigin = null
+                pendingGeoCallback = null
+                if (origin == null || callback == null) return
+                // On Android 12+ "approximate" leaves FINE denied but COARSE granted.
+                val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+                val allowed = granted && miniAppActive &&
+                    MiniAppPermissions.isLocationEnabled(this)
+                Log.d(
+                    "AnyQA",
+                    "web location result perms=${permissions.joinToString()} granted=$granted " +
+                        "allowed=$allowed origin=$origin"
+                )
+                callback.invoke(origin, allowed, false)
+                if (!allowed) {
+                    Toast.makeText(this, R.string.miniapp_permission_denied, Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
+        }
     }
 
     override fun onUserLeaveHint() {
@@ -692,6 +785,15 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 val u = url ?: return
+                // A mini-app link may navigate to a normal website in the same WebView.
+                // Restore the browser defaults before that page starts running. Only real
+                // http(s) pages count: data:/about: URLs are part of the mini-app itself.
+                val external = (u.startsWith("http://") || u.startsWith("https://")) &&
+                    !isMiniAppUrl(u)
+                if (miniAppActive && external) {
+                    miniAppActive = false
+                    applyBrowserWebSettings()
+                }
                 if (!u.startsWith("http") || u.contains(".anyapp.local")) return
                 browserTabs.open(u, null, null)
                 currentAppId = null
@@ -719,6 +821,18 @@ class MainActivity : AppCompatActivity() {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
+                val requestUrl = request.url
+                val requestScheme = requestUrl?.scheme?.lowercase()
+                // "Network" blocks real http(s) traffic only. The mini-app document itself is
+                // loaded from a data: URL and must never be swallowed by this filter.
+                if (miniAppActive && !MiniAppPermissions.isNetworkEnabled(this@MainActivity) &&
+                    (requestScheme == "http" || requestScheme == "https")
+                ) {
+                    Log.d("AnyQA", "miniapp network blocked $requestUrl")
+                    return WebResourceResponse(
+                        "text/plain", "utf-8", ByteArrayInputStream(ByteArray(0))
+                    )
+                }
                 if (adBlockEnabled && !request.isForMainFrame &&
                     request.url != null && AdBlock.isAd(request.url)
                 ) {
@@ -745,6 +859,79 @@ class MainActivity : AppCompatActivity() {
                 val m = msg.message()
                 if (m.contains("[any-ytad]")) Log.d("AnyQA", m)
                 return true
+            }
+
+            // AI-generated apps can ask for the camera/microphone. The Android grant is
+            // requested only after the user enabled the matching toggle in app settings.
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                val req = request ?: return
+                Log.d(
+                    "AnyQA",
+                    "web permission request=${req.resources.joinToString()} mini=$miniAppActive " +
+                        "media=${MiniAppPermissions.isMediaEnabled(this@MainActivity)}"
+                )
+                if (isFinishing || !miniAppActive ||
+                    !MiniAppPermissions.isMediaEnabled(this@MainActivity)
+                ) {
+                    req.deny()
+                    return
+                }
+                val needed = mutableListOf<String>()
+                if (req.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) &&
+                    !hasPermission(Manifest.permission.CAMERA)
+                ) {
+                    needed.add(Manifest.permission.CAMERA)
+                }
+                if (req.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
+                    !hasPermission(Manifest.permission.RECORD_AUDIO)
+                ) {
+                    needed.add(Manifest.permission.RECORD_AUDIO)
+                }
+                if (needed.isEmpty()) {
+                    Log.d("AnyQA", "web permission granted directly")
+                    req.grant(req.resources)
+                    return
+                }
+                pendingWebPermission?.deny()
+                pendingWebPermission = req
+                requestPermissions(needed.toTypedArray(), REQUEST_WEB_MEDIA)
+            }
+
+            // Geolocation stays denied for ordinary websites and for mini-apps unless the
+            // user turned on the location toggle; then the OS permission is requested once.
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                val cb = callback ?: return
+                val source = origin ?: return
+                Log.d(
+                    "AnyQA",
+                    "web geolocation origin=$source mini=$miniAppActive " +
+                        "location=${MiniAppPermissions.isLocationEnabled(this@MainActivity)}"
+                )
+                if (isFinishing || !miniAppActive ||
+                    !MiniAppPermissions.isLocationEnabled(this@MainActivity)
+                ) {
+                    cb.invoke(source, false, false)
+                    return
+                }
+                if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
+                    hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                ) {
+                    cb.invoke(source, true, false)
+                    return
+                }
+                pendingGeoOrigin?.let { pendingGeoCallback?.invoke(it, false, false) }
+                pendingGeoOrigin = source
+                pendingGeoCallback = cb
+                requestPermissions(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    REQUEST_WEB_LOCATION
+                )
             }
 
             // HTML5 video fullscreen: show the WebView's custom view over everything.
@@ -781,6 +968,14 @@ class MainActivity : AppCompatActivity() {
     // that carries a web fallback quietly opens that fallback here instead.
     private fun handleNavigation(url: String, isMainFrame: Boolean): Boolean {
         val scheme = runCatching { Uri.parse(url).scheme?.lowercase() }.getOrNull().orEmpty()
+        // A mini-app with network access turned off must not navigate the shared WebView
+        // to an external site either; subresources are blocked in shouldInterceptRequest.
+        if (miniAppActive && !MiniAppPermissions.isNetworkEnabled(this) &&
+            (scheme == "http" || scheme == "https") && !isMiniAppUrl(url)
+        ) {
+            Toast.makeText(this, R.string.miniapp_network_blocked, Toast.LENGTH_SHORT).show()
+            return true
+        }
         if (scheme == "http" || scheme == "https" || scheme == "about" ||
             scheme == "data" || scheme == "blob"
         ) {
@@ -1586,6 +1781,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
         applyWebToolsPrefs()
+        miniAppActive = false
+        applyBrowserWebSettings()
         currentAppId = null
         editMode = false
         updateEditChip()
@@ -1621,6 +1818,8 @@ class MainActivity : AppCompatActivity() {
     /** Opens a saved mini-app on its own origin so its localStorage stays isolated. */
     private fun showApp(app: MiniApp) {
         applyWebToolsPrefs()
+        miniAppActive = true
+        applyMiniAppWebSettings()
         currentAppId = app.id
         updateEditChip()
         previewContainer.isVisible = true
@@ -1921,6 +2120,35 @@ class MainActivity : AppCompatActivity() {
         WebTools.applyForceDark(webView, p.getBoolean("force_dark", false))
     }
 
+    /** Browser pages keep full JavaScript and storage; mini-app limits never leak to them. */
+    private fun applyBrowserWebSettings() {
+        if (!::webView.isInitialized) return
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        Log.d("AnyQA", "web settings browser js=true dom=true")
+    }
+
+    /** Applies the user's global capabilities while an AI-generated app is on screen. */
+    private fun applyMiniAppWebSettings() {
+        if (!::webView.isInitialized) return
+        val permissions = MiniAppPermissions.load(this)
+        webView.settings.javaScriptEnabled = permissions.javaScript
+        webView.settings.domStorageEnabled = permissions.storage
+        Log.d(
+            "AnyQA",
+            "web settings miniapp js=${permissions.javaScript} dom=${permissions.storage} " +
+                "network=${permissions.network} downloads=${permissions.downloads} " +
+                "media=${permissions.media} location=${permissions.location}"
+        )
+    }
+
+    private fun isMiniAppUrl(raw: String?): Boolean = MiniAppPermissions.isMiniAppHost(
+        runCatching { Uri.parse(raw) }.getOrNull()?.host
+    )
+
+    private fun hasPermission(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
     private fun handleDownload(
         url: String,
         userAgent: String?,
@@ -1932,6 +2160,11 @@ class MainActivity : AppCompatActivity() {
         // should fetch; file://, content:// and app-specific schemes are refused.
         if (!URLUtil.isNetworkUrl(url)) {
             Toast.makeText(this, R.string.download_blocked, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (miniAppActive && !MiniAppPermissions.isDownloadsEnabled(this)) {
+            Log.d("AnyQA", "miniapp download blocked $url")
+            Toast.makeText(this, R.string.miniapp_download_blocked, Toast.LENGTH_SHORT).show()
             return
         }
         runCatching {
@@ -2246,6 +2479,7 @@ class MainActivity : AppCompatActivity() {
                     AutomationSheet.show(this)
                 }
                 "appearance" -> Appearance.showSheet(this)
+                "permissions" -> showMiniAppPermissions()
                 "voice" -> {
                     val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
                     val on = !prefs.getBoolean("voice_tts", false)
@@ -2261,6 +2495,12 @@ class MainActivity : AppCompatActivity() {
                 "update" -> Updater.check(this, silent = false)
                 "about" -> showAbout()
             }
+        }
+    }
+
+    private fun showMiniAppPermissions() {
+        MiniAppPermissionsSheet.show(this) {
+            if (miniAppActive) applyMiniAppWebSettings()
         }
     }
 
@@ -2426,6 +2666,49 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        val permissionSummary = TextView(this).apply {
+            textSize = 11f
+            setTextColor(getColor(R.color.icon_muted))
+            text = getString(
+                R.string.miniapp_permissions_summary,
+                MiniAppPermissions.load(this@MainActivity).enabledCount,
+                MiniAppPermissions.TOGGLE_COUNT
+            )
+        }
+        val permissionsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isClickable = true
+            isFocusable = true
+            contentDescription = getString(R.string.miniapp_permissions)
+            setOnClickListener {
+                MiniAppPermissionsSheet.show(this@MainActivity) {
+                    if (miniAppActive) applyMiniAppWebSettings()
+                    permissionSummary.text = getString(
+                        R.string.miniapp_permissions_summary,
+                        MiniAppPermissions.load(this@MainActivity).enabledCount,
+                        MiniAppPermissions.TOGGLE_COUNT
+                    )
+                }
+            }
+        }
+        val permissionColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        permissionColumn.addView(TextView(this).apply {
+            text = getString(R.string.miniapp_permissions)
+            setTextColor(getColor(R.color.white))
+            textSize = 14f
+        })
+        permissionColumn.addView(permissionSummary)
+        permissionsRow.addView(
+            permissionColumn,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        permissionsRow.addView(
+            FaIcons.make(this, "chevron-right", 12f, getColor(R.color.icon_muted))
+        )
+
         var lastProvider = savedProvider
         providerSpinner.setOnClickListener {
             ChoiceSheet.show(
@@ -2499,6 +2782,7 @@ class MainActivity : AppCompatActivity() {
         col.addView(maxCtxInput)
         col.addView(adBlockCheck, lp())
         col.addView(webSearchCheck, lp())
+        col.addView(permissionsRow, lp())
 
         val settingsDialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
             .setTitle(R.string.settings)
@@ -2689,6 +2973,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val HOST_MINIAPP = "miniapp"
         private const val DEFAULT_MAX_CONTEXT = 40
+        private const val REQUEST_WEB_MEDIA = 7002
+        private const val REQUEST_WEB_LOCATION = 7003
 
         /**
          * Largest saved HTML document that may be sent back for an edit. The edit prompt cannot

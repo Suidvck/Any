@@ -35,6 +35,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 - Describe anything — game, tool, page, calculator — in Thai or English, and the AI returns one complete single-file app that starts instantly, full-screen.
 - Fenced `` ```html `` replies are detected and rendered; the AI is instructed to produce self-contained apps (all CSS/JS inline, no external resources), mobile-first and touch-friendly.
 - **Saved app library** — every mini-app is saved automatically. Reopen it from the recent-apps rail on the home screen or the full library, and delete what you no longer need.
+- **Mini-app permissions** — one settings sheet controls what every AI-written app may do: JavaScript, local storage, network access, downloads, camera/microphone and location. Camera, microphone and location are off by default, and the browser keeps full JavaScript even when mini-app JavaScript is disabled.
 - **Edit by chat** — open a saved app and ask for a change. The AI receives the app's current HTML and updates the same app in place instead of creating a duplicate.
 - **Streaming replies** — answers render token by token as the model writes, instead of waiting for the full response.
 - **Image attachments** — attach a photo or screenshot to a prompt for vision-capable models.
@@ -61,7 +62,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ### Voice & commands
 - Long-press the floating chat ring to give a voice command using in-app speech recognition (Thai).
 - **Read replies aloud** with Android TTS, and use hands-free voice mode: Any listens again automatically after it finishes speaking.
-- `/clear` resets the chat · `/setting` opens configuration (provider, model, API key, context size, ad blocker, live web search).
+- `/clear` resets the chat · `/setting` opens configuration (provider, model, API key, context size, ad blocker, live web search, mini-app permissions).
 
 ### Automation & privacy
 - **Scheduled automations** - set a daily reminder that opens a URL or a saved mini-app, or prefills a prompt for you. Jobs run through WorkManager and are stored only on the device. They keep running after the app is closed and survive a reboot; a manual force-stop or aggressive battery saver may delay them until the app is opened again.
@@ -101,7 +102,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 - The assistant reply is parsed on-device: a fenced `` ```html `` block is rendered in the app WebView; an `` ```html-overlay `` block opens in a draggable floating panel on top of the screen; an `OPEN_URL:` line navigates the browser WebView. The AI is instructed to never mix them.
 - Chat uses any OpenAI-compatible `POST {base}/chat/completions` endpoint with a bearer key, so providers are interchangeable.
 - The ad blocker works at the WebView layer: requests are checked against a host blocklist before they leave the device, and a document-start script on YouTube prunes ad placements from player API responses and skips ad playback.
-- Mini-apps run sandboxed in a plain WebView: HTML/CSS/JS only, no native Android access.
+- Mini-apps run sandboxed in a plain WebView: HTML/CSS/JS only, no native Android access. Camera/microphone, location, downloads and external network requests stay denied unless you explicitly enable them in mini-app permissions.
 
 ## Build & run
 
