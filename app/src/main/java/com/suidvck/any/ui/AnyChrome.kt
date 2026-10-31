@@ -29,7 +29,7 @@ object AnyChrome {
     fun dialog(dialog: Dialog) {
         dialog.window?.let { window ->
             styleBars(window)
-            window.setDimAmount(0.55f)
+            window.setDimAmount(0.42f)
             // Some OEM skins ignore the theme's windowBackground for floating dialogs
             // and paint their own grey surface; re-apply ours on the live window.
             window.setBackgroundDrawableResource(R.drawable.any_dialog_bg)

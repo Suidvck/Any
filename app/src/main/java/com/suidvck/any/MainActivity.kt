@@ -77,6 +77,10 @@ import androidx.webkit.WebViewFeature
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.features.ai.AiMessage
+import com.suidvck.any.features.ai.MiniAppPlan
+import com.suidvck.any.features.ai.MiniAppPlanValidator
+import com.suidvck.any.features.ai.ApprovedMiniAppPlan
+import com.suidvck.any.features.ai.MiniAppApprovalGate
 import com.suidvck.any.features.ai.AiPrompts
 import com.suidvck.any.features.ai.WebSearch
 import com.suidvck.any.features.browser.BrowserMenuSheet
@@ -155,6 +159,7 @@ class MainActivity : AppCompatActivity() {
 
     // Extras (library, chats, browser tabs, voice, attachments).
     private lateinit var miniApps: MiniAppStore
+    private val miniAppApprovalGate = MiniAppApprovalGate()
     private lateinit var chatStore: ChatStore
     private lateinit var browserTabs: TabStore
     private lateinit var browserHistory: HistoryStore
@@ -1467,7 +1472,204 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        if (isMiniAppRequest(promptText, editingId != null)) {
+            AiClient.streamChat(
+                baseUrl = base, apiKey = key, model = model,
+                systemExtra = AiPrompts.miniAppPlanning(
+                    promptText,
+                    editApp?.let { "${it.name}: ${it.html.take(1000)}" }
+                ),
+                history = listOf(AiMessage("user", promptText, image)),
+                webSearch = false,
+                onDelta = { if (!isFinishing) thinkingText.text = "กำลังวิเคราะห์แผนและความเสี่ยง…" },
+                onDone = { full ->
+                    if (isFinishing) return@streamChat
+                    finishRequest()
+                    val plan = MiniAppPlan.parse(full)
+                    if (plan == null) {
+                        addMessage(you = false, text = "อ่านแผนจาก AI ไม่ได้ จึงยังไม่ได้เริ่มสร้างแอพ กรุณาลองใหม่")
+                    } else {
+                        showMiniAppPlan(plan, promptText, editingId, editApp?.html)
+                    }
+                },
+                onError = { e -> if (!isFinishing) failRequest(e.message ?: "unknown error") }
+            )
+            return
+        }
+
         askAi(systemExtra)
+    }
+
+    /** Creation and edits are staged; only an explicit Android button tap starts generation. */
+    private fun isMiniAppRequest(prompt: String, editing: Boolean): Boolean {
+        if (editing) return true
+        val p = prompt.lowercase(Locale.ROOT)
+        val action = listOf(
+            "สร้าง", "ทำ", "เขียน", "อยากได้", "ต้องการ", "ขอ", "ช่วย", "build", "create",
+            "make", "generate", "develop", "code", "design", "i want", "i need", "please"
+        )
+            .any { p.contains(it) }
+        val target = listOf(
+            "แอพ", "แอป", "app", "application", "mini-app", "mini app", "web app", "website",
+            "เว็บแอพ", "เกม", "game", "tool", "calculator", "เครื่องคิดเลข", "dashboard",
+            "todo", "ตารางงาน", "note", "notes", "timer", "stopwatch", "chatbot", "planner",
+            "tracker", "form", "assistant"
+        )
+            .any { p.contains(it) }
+        return action && target
+    }
+
+    private fun showMiniAppPlan(
+        plan: MiniAppPlan,
+        prompt: String,
+        editingId: String?,
+        oldHtml: String?,
+        onApprove: (ApprovedMiniAppPlan) -> Unit = { approved ->
+            generateApprovedMiniApp(approved, prompt, editingId, oldHtml)
+        }
+    ) {
+        if (isFinishing) return
+        miniAppApprovalGate.present(plan)
+        val content = ScrollView(this).apply {
+            setPadding(dp(22), dp(14), dp(22), dp(8))
+            addView(TextView(this@MainActivity).apply {
+                text = plan.toReviewText()
+                textSize = 15f
+                setTextColor(0xFFEAEAF0.toInt())
+            })
+        }
+        val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
+            .setTitle("ตรวจสอบแผนก่อนสร้าง")
+            .setView(content)
+            .setPositiveButton("Approve & Generate", null)
+            .setNeutralButton("Modify Plan", null)
+            .setNegativeButton("Cancel") { _, _ ->
+                miniAppApprovalGate.cancel()
+                addMessage(you = false, text = "ยกเลิกการสร้างแล้ว ยังไม่มีการสร้างหรือบันทึก Mini-App")
+            }
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val grant = miniAppApprovalGate.approve(plan) ?: return@setOnClickListener
+                dialog.dismiss()
+                onApprove(grant)
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                dialog.dismiss()
+                miniAppApprovalGate.cancel()
+                val edit = EditText(this).apply {
+                    hint = "เช่น ใช้ Vanilla JS เท่านั้น และไม่เรียก API ภายนอก"
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                    minLines = 3
+                    setTextColor(0xFFEAEAF0.toInt())
+                }
+                MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
+                    .setTitle("ขอปรับแผน")
+                    .setMessage("อธิบายการเปลี่ยนแปลงที่ต้องการ แผนใหม่จะต้องได้รับอนุมัติก่อนสร้าง")
+                    .setView(edit)
+                    .setPositiveButton("ส่งให้ปรับแผน") { _, _ ->
+                        val change = edit.text.toString().trim()
+                        if (change.isNotEmpty()) requestRevisedMiniAppPlan(plan, prompt, change, editingId, oldHtml)
+                    }
+                    .setNegativeButton("กลับ", null)
+                    .show()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun requestRevisedMiniAppPlan(
+        oldPlan: MiniAppPlan, prompt: String, change: String, editingId: String?, oldHtml: String?
+    ) {
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
+        val model = prefs.getString("model", AiClient.DEFAULT_MODEL).orEmpty().ifBlank { AiClient.DEFAULT_MODEL }
+        val key = prefs.getString("key", "").orEmpty()
+        if (key.isBlank()) return
+        generating = true
+        sendButton.isEnabled = false
+        var cancelled = false
+        val progress = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
+            .setTitle("กำลังปรับแผน")
+            .setMessage("ยังไม่มีการสร้างโค้ด")
+            .setNegativeButton("Cancel") { _, _ -> cancelled = true; generating = false; sendButton.isEnabled = true }
+            .create()
+        progress.show()
+        progress.setOnCancelListener { cancelled = true; generating = false; sendButton.isEnabled = true }
+        AiClient.streamChat(
+            baseUrl = base, apiKey = key, model = model,
+            systemExtra = AiPrompts.miniAppPlanning("$prompt\n\nUser requested plan change: $change\n\nPrevious proposal:\n${oldPlan.toReviewText()}"),
+            history = listOf(AiMessage("user", "$prompt\n\nRevise the previous plan: $change")),
+            webSearch = false,
+            onDelta = {},
+            onDone = { result ->
+                progress.dismiss(); generating = false; sendButton.isEnabled = true
+                if (cancelled || isFinishing) return@streamChat
+                val revised = MiniAppPlan.parse(result)
+                if (revised == null) addMessage(you = false, text = "อ่านแผนที่ปรับแล้วไม่ได้ จึงยังไม่ได้สร้างแอพ")
+                else showMiniAppPlan(revised, prompt, editingId, oldHtml)
+            },
+            onError = { error ->
+                progress.dismiss(); generating = false; sendButton.isEnabled = true
+                if (!cancelled && !isFinishing) addMessage(you = false, text = getString(R.string.error_prefix) + (error.message ?: "unknown error"))
+            }
+        )
+    }
+
+    private fun generateApprovedMiniApp(
+        grant: ApprovedMiniAppPlan, prompt: String, editingId: String?, oldHtml: String?
+    ) {
+        val plan = miniAppApprovalGate.consume(grant) ?: return
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
+        val model = prefs.getString("model", AiClient.DEFAULT_MODEL).orEmpty().ifBlank { AiClient.DEFAULT_MODEL }
+        val key = prefs.getString("key", "").orEmpty()
+        if (key.isBlank()) return
+        generating = true
+        sendButton.isEnabled = false
+        var cancelled = false
+        val progress = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
+            .setTitle("กำลังสร้าง Mini-App")
+            .setMessage("ตรวจสอบการใช้ทรัพยากรตามแผนที่อนุมัติแล้ว")
+            .setNegativeButton("Cancel") { _, _ -> cancelled = true; generating = false; sendButton.isEnabled = true }
+            .create()
+        progress.show()
+        progress.setOnCancelListener { cancelled = true; generating = false; sendButton.isEnabled = true }
+        AiClient.streamChat(
+            baseUrl = base, apiKey = key, model = model,
+            systemExtra = AiPrompts.miniAppGeneration(plan, prompt, oldHtml),
+            history = listOf(AiMessage("user", prompt)),
+            webSearch = false,
+            onDelta = {},
+            onDone = { result ->
+                progress.dismiss(); generating = false; sendButton.isEnabled = true
+                if (cancelled || isFinishing) return@streamChat
+                val match = codeBlockRegex.find(result)
+                val html = match?.takeIf { isHtmlBlock(it) }?.groupValues?.get(2)?.trim()
+                    ?: result.trim().takeIf { it.startsWith("<!DOCTYPE", true) || it.startsWith("<html", true) }
+                if (html.isNullOrBlank()) {
+                    addMessage(you = false, text = "AI ไม่ได้ส่ง HTML ตามแผน จึงไม่ได้บันทึกหรือเปิดแอพ")
+                    return@streamChat
+                }
+                val extras = MiniAppPlanValidator.unapprovedOrigins(html, plan)
+                if (extras.isNotEmpty()) {
+                    val revised = plan.copy(
+                        externalServices = plan.externalServices + extras.map { "พบในผลสร้าง: $it" },
+                        risks = plan.risks + "โค้ดที่ได้มี origin ซึ่งไม่มีในแผนเดิม: ${extras.joinToString()}. ต้องอนุมัติแผนใหม่"
+                    )
+                    addMessage(you = false, text = "พบ URL ภายนอกที่ไม่ได้อยู่ในแผนเดิม โค้ดยังไม่ถูกบันทึกหรือแสดง")
+                    showMiniAppPlan(revised, prompt, editingId, oldHtml) { newlyApproved ->
+                        generateApprovedMiniApp(newlyApproved, prompt, editingId, oldHtml)
+                    }
+                } else {
+                    handleReply("สร้างแอพตามแผนที่อนุมัติแล้ว\n\n```html\n$html\n```", editingId, approvedMiniApp = true)
+                }
+            },
+            onError = { error ->
+                progress.dismiss(); generating = false; sendButton.isEnabled = true
+                if (!cancelled && !isFinishing) addMessage(you = false, text = getString(R.string.error_prefix) + (error.message ?: "unknown error"))
+            }
+        )
     }
 
     /** True for a fence that should be treated as a mini-app document. */
@@ -1494,7 +1696,7 @@ class MainActivity : AppCompatActivity() {
         return visible.replace("**", "").replace("`", "").trim()
     }
 
-    private fun handleReply(reply: String, editingId: String?) {
+    private fun handleReply(reply: String, editingId: String?, approvedMiniApp: Boolean = false) {
         val urlMatch = openUrlRegex.find(reply)
         val codeMatches = codeBlockRegex.findAll(reply).toList()
         val visible = visiblePart(reply)
@@ -1519,6 +1721,15 @@ class MainActivity : AppCompatActivity() {
         }
         val html = fencedHtml ?: bareHtml
         val url = urlMatch?.groupValues?.get(1)?.trimEnd(',', '.', ')', '"')
+
+        // Other chat paths may receive unsolicited code from a provider. Keep it out of storage
+        // and WebView unless this call came from the app-owned approval flow.
+        if (!html.isNullOrEmpty() && !approvedMiniApp) {
+            addMessage(you = false, text = "AI ส่ง Mini-App มาโดยไม่มีแผนที่อนุมัติ จึงไม่ได้บันทึกหรือเปิดแอพ กรุณาส่งคำขอสร้างแอพอีกครั้ง")
+            chatStore.append(StoredMessage("assistant", "บล็อก Mini-App ที่ยังไม่ได้รับอนุมัติ"))
+            chatStore.saveAllNow()
+            return
+        }
 
         if (visible.isNotEmpty()) addMessage(you = false, text = visible)
 
@@ -2297,7 +2508,7 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(getColor(R.color.label_on_dark))
                 gravity = Gravity.CENTER
                 setPadding(dp(11), dp(7), dp(11), dp(7))
-                background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+                background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
                 isClickable = true
                 isFocusable = true
                 contentDescription = label
@@ -2449,7 +2660,7 @@ class MainActivity : AppCompatActivity() {
         chip.text = if (editMode) FaIcons.labeled(this, "pen", "กำลังแก้แอพนี้ · แตะเพื่อปิด")
         else FaIcons.labeled(this, "pen", "แตะเพื่อแก้แอพนี้ด้วยแชท")
         chip.background = roundedBg(
-            if (editMode) 0xFF5F6CF5.toInt() else 0xFF23232B.toInt(),
+            if (editMode) 0xFF7C5CBF.toInt() else 0xFF211F26.toInt(),
             dp(14).toFloat()
         )
     }
@@ -2462,7 +2673,7 @@ class MainActivity : AppCompatActivity() {
             chip.visibility = View.GONE
         } else {
             chip.text = FaIcons.labeled(this, "image", "แนบรูปแล้ว · แตะเพื่อลบ")
-            chip.background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            chip.background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
             chip.visibility = View.VISIBLE
         }
     }
@@ -2479,6 +2690,7 @@ class MainActivity : AppCompatActivity() {
                     AutomationSheet.show(this)
                 }
                 "appearance" -> Appearance.showSheet(this)
+                "ai" -> showSettings()
                 "permissions" -> showMiniAppPermissions()
                 "voice" -> {
                     val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -2581,7 +2793,7 @@ class MainActivity : AppCompatActivity() {
         val providerSpinner = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
             setPadding(dp(14), dp(12), dp(14), dp(12))
             isClickable = true
             isFocusable = true
@@ -2615,7 +2827,7 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(getColor(R.color.input_hint))
             textSize = 14f
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
         }
         val modelInput = EditText(this).apply {
             hint = getString(R.string.model)
@@ -2625,7 +2837,7 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(getColor(R.color.input_hint))
             textSize = 14f
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
         }
         val keyInput = EditText(this).apply {
             hint = getString(R.string.api_key)
@@ -2636,7 +2848,7 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(getColor(R.color.input_hint))
             textSize = 14f
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
         }
         val maxCtxInput = EditText(this).apply {
             hint = getString(R.string.max_context)
@@ -2647,7 +2859,7 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(getColor(R.color.input_hint))
             textSize = 14f
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
         }
         val adBlockCheck = CheckBox(this).apply {
             setText(R.string.adblock_label)
@@ -2678,7 +2890,7 @@ class MainActivity : AppCompatActivity() {
         val permissionsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
             setPadding(dp(14), dp(12), dp(14), dp(12))
             isClickable = true
             isFocusable = true
@@ -2852,7 +3064,7 @@ class MainActivity : AppCompatActivity() {
                         setHintTextColor(getColor(R.color.input_hint))
                         textSize = 14f
                         setPadding(dp(14), dp(12), dp(14), dp(12))
-                        background = roundedBg(0xFF23232B.toInt(), dp(14).toFloat())
+                        background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
                     }
                     val list = ListView(this).apply {
                         dividerHeight = 0

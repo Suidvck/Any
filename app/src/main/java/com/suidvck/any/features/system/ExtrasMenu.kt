@@ -37,6 +37,7 @@ object ExtrasMenu {
         Item("tabs", "table-columns", R.string.system_menu_tabs_title, R.string.system_menu_tabs_sub),
         Item("find", "magnifying-glass", R.string.system_menu_find_title, R.string.system_menu_find_sub),
         Item("automations", "bell", R.string.system_menu_automations_title, R.string.system_menu_automations_sub),
+        Item("ai", "gear", R.string.system_menu_ai_title, R.string.system_menu_ai_sub),
         Item("appearance", "palette", R.string.system_menu_appearance_title, R.string.system_menu_appearance_sub),
         Item("permissions", "shield-halved", R.string.system_menu_permissions_title, R.string.system_menu_permissions_sub),
         Item("voice", "volume-high", R.string.system_menu_voice_title, R.string.system_menu_voice_sub),

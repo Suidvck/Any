@@ -45,17 +45,17 @@ private const val PREFS_NAME = "settings"
 private const val KEY_DESKTOP = "desktop_mode"
 private const val KEY_FORCE_DARK = "force_dark"
 
-private val SHEET_BG = 0xFF17171B.toInt()
-private val CARD_BG = 0xFF23232B.toInt()
-private val BRAND = 0xFF5F6CF5.toInt()
+private val SHEET_BG = 0xFF141218.toInt()
+private val CARD_BG = 0xFF211F26.toInt()
+private val BRAND = 0xFF7C5CBF.toInt()
 private val TEXT_MAIN = 0xFFFFFFFF.toInt()
-private val TEXT_MUTED = 0xFF9A9AA5.toInt()
+private val TEXT_MUTED = 0xFFCAC4D0.toInt()
 private val ROSE = 0xFFE2708A.toInt()
 private val STAR_ON = 0xFFFFC65C.toInt()
 private val DIVIDER = 0x1FFFFFFF
-private val HANDLE_BG = 0xFF2E2E38.toInt()
-private val SWITCH_TRACK_OFF = 0xFF3A3A46.toInt()
-private val SWITCH_THUMB_OFF = 0xFF8E8E9A.toInt()
+private val HANDLE_BG = 0xFF49454F.toInt()
+private val SWITCH_TRACK_OFF = 0xFF49454F.toInt()
+private val SWITCH_THUMB_OFF = 0xFFCAC4D0.toInt()
 
 private val MP = ViewGroup.LayoutParams.MATCH_PARENT
 private val WC = ViewGroup.LayoutParams.WRAP_CONTENT

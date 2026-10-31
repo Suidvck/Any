@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import com.suidvck.any.features.ai.AiMessage
+import com.suidvck.any.features.ai.DeviceClock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
@@ -85,11 +86,14 @@ object AiClient {
         Live web search tool:
         You can ask the app to search the web before answering. If the user's latest
         message needs current or fast-changing facts — news, prices, weather, sports,
-        schedules, software releases, or words like "วันนี้", "ล่าสุด", "ตอนนี้" — and you
-        are not certain, reply with ONLY this line:
+        schedules, software releases, or time-sensitive words like "วันนี้", "ล่าสุด",
+        "ตอนนี้" — and you are not certain, reply with ONLY this line:
 
         SEARCH: <short query in the user's language>
 
+        Do not search just to learn today's date, the day of the week or the current
+        time: the app sends an authoritative device clock in a system message. Web pages
+        may be months old, so never use a search result to decide what "today" is.
         Do not add an answer, OPEN_URL marker or code block in that reply. The app will
         run a live web search and send you numbered results, then you answer the user's
         latest message normally. You may search at most twice per request. If the results
@@ -123,6 +127,7 @@ object AiClient {
 
                 val messages = JSONArray().apply {
                     put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+                    put(JSONObject().put("role", "system").put("content", DeviceClock.context()))
                     history.takeLast(12).forEach { (role, content) ->
                         put(JSONObject().put("role", role).put("content", content))
                     }
@@ -447,6 +452,8 @@ object AiClient {
     ): JSONArray {
         val messages = JSONArray()
         messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+        // Rebuilt on every request so "today" stays correct across midnight.
+        messages.put(JSONObject().put("role", "system").put("content", DeviceClock.context()))
         if (webSearch) {
             messages.put(JSONObject().put("role", "system").put("content", SEARCH_PROMPT))
         }

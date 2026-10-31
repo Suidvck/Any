@@ -176,9 +176,9 @@ class RecentAppsRow @JvmOverloads constructor(
         private const val CHIP_HEIGHT_DP = 64
         private const val MAX_APPS = 6
         private const val MAX_NAME_CHARS = 10
-        private val CHIP_FILL = 0xCC23232B.toInt()
-        private val CHIP_TEXT = 0xFFEDEDF2.toInt()
-        private val BRAND_LIGHT = 0xFFB9BEFF.toInt()
+        private val CHIP_FILL = 0xCC211F26.toInt()
+        private val CHIP_TEXT = 0xFFE6E1E9.toInt()
+        private val BRAND_LIGHT = 0xFFD0BCFF.toInt()
     }
 }
 

@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/miniapp_permissions_subtitle"
-            android:textColor="#9A9AA5"
+            android:textColor="@color/muted"
             android:textSize="12sp" />
 
         <TextView
@@ -60,7 +60,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:text="@string/miniapp_permissions_note"
-            android:textColor="#9A9AA5"
+            android:textColor="@color/muted"
             android:textSize="11sp" />
 
         <TextView

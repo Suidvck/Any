@@ -180,7 +180,7 @@ object MiniAppPermissionsSheet {
                     this,
                     toggle.icon,
                     16f,
-                    if (enabled) accent else 0xFF9A9AA5.toInt()
+                    if (enabled) accent else 0xFFCAC4D0.toInt()
                 )
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -205,7 +205,7 @@ object MiniAppPermissionsSheet {
         textColumn.addView(
             TextView(activity).apply {
                 text = subtitle
-                setTextColor(0xFF9A9AA5.toInt())
+                setTextColor(0xFFCAC4D0.toInt())
                 textSize = 11f
                 includeFontPadding = false
                 setPadding(0, dp(activity, 2), 0, 0)
@@ -222,7 +222,7 @@ object MiniAppPermissionsSheet {
         row.addView(
             TextView(activity).apply {
                 text = stateLabel
-                setTextColor(if (enabled) Color.WHITE else 0xFF9A9AA5.toInt())
+                setTextColor(if (enabled) 0xFF381E72.toInt() else 0xFFCAC4D0.toInt())
                 textSize = 12f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 gravity = Gravity.CENTER
@@ -230,7 +230,7 @@ object MiniAppPermissionsSheet {
                 setPadding(dp(activity, 12), dp(activity, 7), dp(activity, 12), dp(activity, 7))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(activity, 18).toFloat()
-                    setColor(if (enabled) accent else 0xFF23232B.toInt())
+                    setColor(if (enabled) accent else 0xFF211F26.toInt())
                 }
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 isClickable = true

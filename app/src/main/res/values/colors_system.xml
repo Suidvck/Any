@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Extras bottom sheet is intentionally dark in both themes. -->
-    <color name="system_sheet">#17171B</color>
-    <color name="system_card">#23232B</color>
-    <color name="system_text">#FFFFFF</color>
-    <color name="system_muted">#9A9AA5</color>
-    <color name="system_accent">#5F6CF5</color>
-    <color name="system_handle">#3A3A44</color>
+    <color name="system_sheet">#141218</color>
+    <color name="system_card">#211F26</color>
+    <color name="system_text">#E6E1E9</color>
+    <color name="system_muted">#CAC4D0</color>
+    <color name="system_accent">#D0BCFF</color>
+    <color name="system_handle">#49454F</color>
 </resources>

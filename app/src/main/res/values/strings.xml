@@ -23,7 +23,7 @@
     <string name="saved">บันทึกการตั้งค่าแล้ว ลองพิมพ์สั่งได้เลย</string>
     <string name="error_prefix">ผิดพลาด: </string>
     <string name="loading_dots">กำลังโหลด…</string>
-    <string name="type_something">Type Something …</string>
+    <string name="type_something">Ask Any…</string>
     <string name="running_background">Running - Background</string>
     <string name="active">Active</string>
     <string name="idle">Idle</string>

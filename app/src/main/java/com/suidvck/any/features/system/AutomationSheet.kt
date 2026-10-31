@@ -49,11 +49,11 @@ import java.util.UUID
  */
 object AutomationSheet {
 
-    private val SHEET = 0xFF17171B.toInt()
-    private val CARD = 0xFF23232B.toInt()
-    private val BRAND = 0xFF5F6CF5.toInt()
+    private val SHEET = 0xFF141218.toInt()
+    private val CARD = 0xFF211F26.toInt()
+    private val BRAND = 0xFF7C5CBF.toInt()
     private val TEXT = 0xFFFFFFFF.toInt()
-    private val MUTED = 0xFF9A9AA5.toInt()
+    private val MUTED = 0xFFCAC4D0.toInt()
     private val ROSE = 0xFFE2708A.toInt()
 
     private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
@@ -158,7 +158,7 @@ object AutomationSheet {
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setPadding(dp(ctx, 14), dp(ctx, 8), dp(ctx, 14), dp(ctx, 8))
-                background = rounded(ctx, 0x265F6CF5, 999f)
+                background = rounded(ctx, 0x26D0BCFF, 999f)
                 isClickable = true
                 setOnClickListener {
                     openEditor(ctx, store, null) {

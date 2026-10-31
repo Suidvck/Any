@@ -14,6 +14,45 @@ object AiPrompts {
     private const val MAX_HTML_CHARS = 60_000
     private const val MAX_PAGE_CHARS = 12_000
 
+    /** First phase only: this prompt requests a proposal and explicitly prohibits runnable code. */
+    fun miniAppPlanning(userRequest: String, editContext: String? = null): String = buildString {
+        append("""
+            You are the planning reviewer for a Mini-App inside Any. Do not generate or include
+            executable HTML, CSS, JavaScript, code snippets, or code fences. Return exactly one
+            JSON object following the schema below. Assume Vanilla HTML, CSS and JavaScript and
+            no network access by default. Only list third-party libraries/assets/services when
+            the request genuinely requires them. Never guess license details: set license status
+            to "ยังไม่สามารถตรวจสอบได้" when you cannot substantiate it. Do not claim anything
+            is 100% safe or guaranteed non-infringing. Flag license, attribution, source-sharing,
+            copyright, external URL, data transfer and API concerns in risks.
+
+            Schema: {"app_name":string,"description":string,"features":string[],
+            "technologies":string[],"libraries":string[],"external_assets":string[],
+            "external_services":string[],"license_review":{"status":string,
+            "details":string[]},"risks":string[],"requires_user_approval":true}
+            Include the library URL and known license per library as text in libraries. Mention
+            each external asset's source/URL and each service's endpoint/purpose where applicable.
+            The app independently enforces approval; never imply the user has approved.
+            User request: ${userRequest.take(4000)}
+        """.trimIndent())
+        if (!editContext.isNullOrBlank()) append("\n\nExisting app context (description only):\n${editContext.take(1200)}")
+    }
+
+    /** Second phase: runnable code can only be requested after Android receives an approve tap. */
+    fun miniAppGeneration(plan: MiniAppPlan, userRequest: String, currentHtml: String? = null): String = buildString {
+        append("""
+            Generate one complete single-file Mini-App document for Any as exactly one fenced
+            html code block. The user approved this plan; follow it exactly. Do not add libraries,
+            CDN URLs, external assets, API calls, network requests, or other material resources
+            beyond those explicitly listed here. If the approved plan does not list any, produce
+            fully self-contained Vanilla HTML/CSS/JavaScript with no external URLs. Never embed
+            API keys. Plan:
+            ${plan.toReviewText()}
+            User's request: ${userRequest.take(4000)}
+        """.trimIndent())
+        if (!currentHtml.isNullOrBlank()) append("\nExisting app to update (preserve other functions):\n<<<HTML>>>\n${currentHtml.take(MAX_HTML_CHARS)}\n<<<END HTML>>>")
+    }
+
     /**
      * Prompt for "edit this mini-app": tells the model it is modifying an existing single-file
      * HTML document and must return the COMPLETE updated document in one ```html block.

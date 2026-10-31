@@ -26,9 +26,9 @@ import kotlin.math.roundToInt
  */
 object TimeSheet {
 
-    private const val TEXT = 0xFFF2F2F7.toInt()
-    private const val MUTED = 0xFF9A9AA5.toInt()
-    private const val CARD = 0xFF23232B.toInt()
+    private const val TEXT = 0xFFE6E1E9.toInt()
+    private const val MUTED = 0xFFCAC4D0.toInt()
+    private const val CARD = 0xFF211F26.toInt()
 
     fun show(
         activity: Activity,
@@ -38,7 +38,7 @@ object TimeSheet {
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
         val accent = runCatching { Appearance.accentColor(activity) }
-            .getOrDefault(0xFF5F6CF5.toInt())
+            .getOrDefault(0xFF7C5CBF.toInt())
         var h = hour.coerceIn(0, 23)
         var m = minute.coerceIn(0, 59)
 
@@ -167,7 +167,7 @@ object TimeSheet {
         actions.addView(
             TextView(activity).apply {
                 text = "บันทึก"
-                setTextColor(Color.WHITE)
+                setTextColor(if (androidx.core.graphics.ColorUtils.calculateLuminance(accent) > 0.5) 0xFF381E72.toInt() else Color.WHITE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 gravity = Gravity.CENTER

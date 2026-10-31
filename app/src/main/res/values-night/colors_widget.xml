@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark theme widget card -->
-    <color name="widget_bg">#17171B</color>
-    <color name="widget_stroke">#1FFFFFFF</color>
-    <color name="widget_text">#FFFFFF</color>
-    <color name="widget_muted">#9A9AA5</color>
-    <color name="widget_chip">#23232B</color>
-    <color name="widget_accent">#C9A6FF</color>
-    <color name="widget_icon">#C9A6FF</color>
+    <color name="widget_bg">#211F26</color>
+    <color name="widget_stroke">#49454F</color>
+    <color name="widget_text">#E6E1E9</color>
+    <color name="widget_muted">#CAC4D0</color>
+    <color name="widget_chip">#2B2930</color>
+    <color name="widget_accent">#D0BCFF</color>
+    <color name="widget_icon">#D0BCFF</color>
 </resources>

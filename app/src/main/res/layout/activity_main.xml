@@ -11,11 +11,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <com.suidvck.any.HomeBackdropView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:importantForAccessibility="no" />
-
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
@@ -34,13 +29,13 @@
                     android:id="@+id/clock_time"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="@font/doto"
+            android:fontFamily="sans"
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:lineSpacingMultiplier="0.8"
                     android:text="00&#10;00"
                     android:textColor="@color/clock_color"
-                    android:textSize="148sp" />
+                    android:textSize="112sp" />
 
                 <LinearLayout
                     android:id="@+id/running_rows"
@@ -214,13 +209,12 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackgroundBorderless"
-                        android:letterSpacing="0.1"
+                        android:letterSpacing="0.02"
                         android:paddingTop="9dp"
                         android:paddingBottom="9dp"
                         android:text="@string/type_something"
-                        android:textAllCaps="true"
                         android:textColor="@color/home_text"
-                        android:textSize="11sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <Space

@@ -155,7 +155,7 @@ class AutomationWorker(context: Context, params: WorkerParameters) : Worker(cont
         internal const val KIND_APP = "app"
 
         private const val TAG = "AutomationWorker"
-        private val ACCENT = 0xFF5F6CF5.toInt()
+        private val ACCENT = 0xFF7C5CBF.toInt()
 
         internal fun notificationId(id: String): Int = ("auto_$id").hashCode() and 0x7FFFFFFF
     }

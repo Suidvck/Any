@@ -32,7 +32,7 @@ object ChoiceSheet {
         onPick: (Int) -> Unit
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
-        val accent = runCatching { Appearance.accentColor(activity) }.getOrDefault(0xFF5F6CF5.toInt())
+        val accent = runCatching { Appearance.accentColor(activity) }.getOrDefault(0xFF7C5CBF.toInt())
         val dialog = BottomSheetDialog(activity)
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -65,7 +65,7 @@ object ChoiceSheet {
             root.addView(
                 TextView(activity).apply {
                     text = subtitle
-                    setTextColor(0xFF9A9AA5.toInt())
+                    setTextColor(0xFFCAC4D0.toInt())
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                     setPadding(0, dp(activity, 4), 0, 0)
                 }
@@ -133,7 +133,7 @@ object ChoiceSheet {
                 cornerRadius = dp(activity, 14).toFloat()
                 setColor(
                     if (selected) (accent and 0x00FFFFFF) or 0x26000000
-                    else 0xFF23232B.toInt()
+                    else 0xFF211F26.toInt()
                 )
             }
             isClickable = true

@@ -4,22 +4,22 @@
     <style name="AnyDialogTheme" parent="Theme.MaterialComponents.Dialog.Alert">
         <item name="colorPrimary">@color/brand</item>
         <item name="colorPrimaryVariant">@color/brand</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/brand</item>
-        <item name="colorSecondaryVariant">@color/brand</item>
-        <item name="colorOnSecondary">@color/white</item>
-        <item name="colorSurface">#1B1B21</item>
-        <item name="colorOnSurface">@color/white</item>
-        <item name="colorOnSurfaceVariant">@color/icon_muted</item>
-        <item name="android:colorBackground">#17171B</item>
-        <item name="android:colorBackgroundFloating">#1B1B21</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">@color/clock_color</item>
+        <item name="colorSecondaryVariant">@color/clock_color</item>
+        <item name="colorOnSecondary">#381E72</item>
+        <item name="colorSurface">@color/card_bg</item>
+        <item name="colorOnSurface">@color/body_text</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
+        <item name="android:colorBackground">@color/home_bg</item>
+        <item name="android:colorBackgroundFloating">@color/card_bg</item>
         <item name="colorControlActivated">@color/brand</item>
         <item name="colorAccent">@color/brand</item>
-        <item name="android:textColorPrimary">@color/white</item>
-        <item name="android:textColorSecondary">@color/icon_muted</item>
-        <item name="android:textColorHint">@color/input_hint</item>
+        <item name="android:textColorPrimary">@color/body_text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:textColorHint">@color/muted</item>
         <item name="android:windowBackground">@drawable/any_dialog_bg</item>
-        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="android:backgroundDimAmount">0.42</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>

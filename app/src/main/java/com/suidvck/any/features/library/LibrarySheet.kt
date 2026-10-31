@@ -398,13 +398,13 @@ object LibrarySheet {
     }
 }
 
-private val LIB_SHEET_BG = 0xFF17171B.toInt()
-private val LIB_CARD_BG = 0xFF23232B.toInt()
-private val LIB_FIELD_BG = 0xFF23232B.toInt()
+private val LIB_SHEET_BG = 0xFF141218.toInt()
+private val LIB_CARD_BG = 0xFF211F26.toInt()
+private val LIB_FIELD_BG = 0xFF211F26.toInt()
 private val LIB_TEXT = 0xFFFFFFFF.toInt()
-private val LIB_MUTED = 0xFF9A9AA5.toInt()
+private val LIB_MUTED = 0xFFCAC4D0.toInt()
 private val LIB_ROSE = 0xFFE2708A.toInt()
-private val LIB_BRAND = 0xFF5F6CF5.toInt()
+private val LIB_BRAND = 0xFF7C5CBF.toInt()
 
 private fun roundedBackground(fill: Int, radiusPx: Float): GradientDrawable =
     GradientDrawable().apply {

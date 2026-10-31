@@ -9,52 +9,52 @@
     <color name="white">#FFFFFFFF</color>
 
     <!-- Chat sheet palette -->
-    <color name="bg_screen">#0C0C11</color>
-    <color name="sheet_bg">#17171B</color>
-    <color name="brand">#5F6CF5</color>
+    <color name="bg_screen">#141218</color>
+    <color name="sheet_bg">#141218</color>
+    <color name="brand">#7C5CBF</color>
     <color name="scrim">#26000000</color>
-    <color name="handle">#D9D9E2</color>
-    <color name="label_on_dark">#C7C7D2</color>
-    <color name="text_primary_dark">#17171B</color>
-    <color name="input_hint">#9A9AA5</color>
-    <color name="icon_muted">#9C9CA8</color>
+    <color name="handle">#CAC4D0</color>
+    <color name="label_on_dark">#E6E1E9</color>
+    <color name="text_primary_dark">#E6E1E9</color>
+    <color name="input_hint">#CAC4D0</color>
+    <color name="icon_muted">#CAC4D0</color>
 
     <!-- Home screen (dark) -->
-    <color name="card_bg">#17171D</color>
-    <color name="card_stroke">#14FFFFFF</color>
-    <color name="chip_bg">#23232B</color>
-    <color name="chip_text">#D6D6DE</color>
-    <color name="muted">#9A9AA6</color>
-    <color name="body_text">#EDEDF2</color>
-    <color name="green_dot">#3DDC84</color>
-    <color name="progress_track">#2E2E38</color>
+    <color name="card_bg">#211F26</color>
+    <color name="card_stroke">#49454F</color>
+    <color name="chip_bg">#2B2930</color>
+    <color name="chip_text">#E6E1E9</color>
+    <color name="muted">#CAC4D0</color>
+    <color name="body_text">#E6E1E9</color>
+    <color name="green_dot">#B8F397</color>
+    <color name="progress_track">#49454F</color>
 
-    <!-- Home redesign (lavender light, per mockup) -->
-    <color name="home_bg">#FCFAFE</color>
-    <color name="clock_color">#5B2B9E</color>
-    <color name="control_bg">#FFFFFF</color>
-    <color name="control_icon">#5B2B9E</color>
-    <color name="play_bg">#6C3DAB</color>
-    <color name="play_icon">#FFFFFF</color>
-    <color name="home_text">#5B2B9E</color>
-    <color name="home_muted">#8A7CA0</color>
-    <color name="home_icon">#5B2B9E</color>
-    <color name="progress_track_home">#E7DCF5</color>
-    <color name="progress_fill_home">#5B2B9E</color>
-    <color name="media_pill_bg">#F0FFFFFF</color>
-    <color name="yt_pill_bg">#FFFFFF</color>
-    <color name="yt_pill_text">#5B2B9E</color>
-    <color name="yt_pill_stroke">#1F5B2B9E</color>
-    <color name="blob_one">#F2E4FB</color>
-    <color name="blob_two">#DDE9FA</color>
-    <color name="blob_three">#FBE8D9</color>
+    <!-- Shared dark Material You surfaces and tonal lavender accent -->
+    <color name="home_bg">#141218</color>
+    <color name="clock_color">#D0BCFF</color>
+    <color name="control_bg">#211F26</color>
+    <color name="control_icon">#D0BCFF</color>
+    <color name="play_bg">#D0BCFF</color>
+    <color name="play_icon">#381E72</color>
+    <color name="home_text">#E6E1E9</color>
+    <color name="home_muted">#CAC4D0</color>
+    <color name="home_icon">#D0BCFF</color>
+    <color name="progress_track_home">#49454F</color>
+    <color name="progress_fill_home">#D0BCFF</color>
+    <color name="media_pill_bg">#211F26</color>
+    <color name="yt_pill_bg">#2B2930</color>
+    <color name="yt_pill_text">#D0BCFF</color>
+    <color name="yt_pill_stroke">#49454F</color>
+    <color name="blob_one">#141218</color>
+    <color name="blob_two">#141218</color>
+    <color name="blob_three">#141218</color>
 
-    <!-- Chat sheet redesign (warm) -->
-    <color name="bubble_you">#9A7471</color>
-    <color name="bubble_assistant">#D5D0CB</color>
-    <color name="chat_panel_bg">#2E2825</color>
-    <color name="chat_input_bg">#211C19</color>
-    <color name="send_circle">#3A332F</color>
-    <color name="send_icon">#C6BFB9</color>
-    <color name="handle_light">#E5E0DB</color>
+    <!-- Chat surface roles -->
+    <color name="bubble_you">#4F378B</color>
+    <color name="bubble_assistant">#211F26</color>
+    <color name="chat_panel_bg">#141218</color>
+    <color name="chat_input_bg">#211F26</color>
+    <color name="send_circle">#D0BCFF</color>
+    <color name="send_icon">#381E72</color>
+    <color name="handle_light">#CAC4D0</color>
 </resources>

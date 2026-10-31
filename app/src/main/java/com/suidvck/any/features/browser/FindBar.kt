@@ -207,7 +207,7 @@ class FindBar @JvmOverloads constructor(
 
     private fun setCounter(active: Int, total: Int) {
         counter.text = "$active/$total"
-        counter.setTextColor(if (total > 0) 0xFFE6E6EE.toInt() else MUTED)
+        counter.setTextColor(if (total > 0) 0xFFE6E1E9.toInt() else MUTED)
     }
 
     private fun focusInput() {
@@ -239,7 +239,7 @@ class FindBar @JvmOverloads constructor(
             this,
             icon,
             if (close) 14f else 13f,
-            if (close) 0xFFC7C7D2.toInt() else 0xFFE6E6EE.toInt()
+            if (close) 0xFFE6E1E9.toInt() else 0xFFE6E1E9.toInt()
         )
         gravity = Gravity.CENTER
         contentDescription = description
@@ -276,6 +276,6 @@ class FindBar @JvmOverloads constructor(
 
     private companion object {
         const val TAG = "any_find_bar"
-        val MUTED = 0xFF9A9AA5.toInt()
+        val MUTED = 0xFFCAC4D0.toInt()
     }
 }

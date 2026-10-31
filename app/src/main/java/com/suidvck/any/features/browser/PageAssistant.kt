@@ -45,9 +45,9 @@ object PageAssistant {
     private const val MAX_PAGE_CHARS = 7000
     private const val MAX_CARD_CHARS = 12000
 
-    private val BRAND = 0xFF5F6CF5.toInt()
+    private val BRAND = 0xFF7C5CBF.toInt()
     private val TEXT = 0xFFFFFFFF.toInt()
-    private val MUTED = 0xFF9A9AA5.toInt()
+    private val MUTED = 0xFFCAC4D0.toInt()
 
     fun show(
         activity: Activity,
@@ -85,7 +85,7 @@ object PageAssistant {
         })
         val closeButton = TextView(activity).apply {
             gravity = Gravity.CENTER
-            FaIcons.setIcon(this, "xmark", 14f, 0xFFC7C7D2.toInt())
+            FaIcons.setIcon(this, "xmark", 14f, 0xFFE6E1E9.toInt())
             contentDescription = activity.getString(R.string.webtools_close)
             isClickable = true
             isFocusable = true
@@ -419,13 +419,13 @@ object PageAssistant {
         )
         return "<style>html,body{margin:0;padding:0;background:transparent;}" +
             "</style>" +
-            "<div style=\"box-sizing:border-box;background:#17171B;color:#EDEDF2;" +
+            "<div style=\"box-sizing:border-box;background:#141218;color:#E6E1E9;" +
             "border:1px solid rgba(255,255,255,0.08);border-radius:16px;" +
             "padding:14px 16px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;" +
             "font-size:15px;line-height:1.55;max-height:280px;overflow:auto;" +
             "-webkit-overflow-scrolling:touch;word-break:break-word;\">" +
             "<div style=\"font-size:11px;font-weight:600;letter-spacing:.04em;" +
-            "color:#9A9AA5;margin-bottom:8px;\">$label</div>" +
+            "color:#CAC4D0;margin-bottom:8px;\">$label</div>" +
             "<div>$body</div></div>"
     }
 

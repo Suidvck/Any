@@ -39,7 +39,7 @@ object Appearance {
     const val DEFAULT_ACCENT = "lavender"
 
     val accents: List<Accent> = listOf(
-        Accent("lavender", "ลาเวนเดอร์", 0xFF5F6CF5.toInt()),
+        Accent("lavender", "ลาเวนเดอร์", 0xFFD0BCFF.toInt()),
         Accent("mint", "มิ้นต์", 0xFF35B98A.toInt()),
         Accent("rose", "โรส", 0xFFE2708A.toInt()),
         Accent("amber", "แอมเบอร์", 0xFFE0A03A.toInt()),
@@ -232,7 +232,7 @@ object Appearance {
         row.addView(
             TextView(activity).apply {
                 gravity = Gravity.CENTER
-                val tint = if (selected) accent else 0xFF9A9AA5.toInt()
+                val tint = if (selected) accent else 0xFFCAC4D0.toInt()
                 com.suidvck.any.ui.FaIcons.setIcon(this, icon, 17f, tint)
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -257,7 +257,7 @@ object Appearance {
         textColumn.addView(
             TextView(activity).apply {
                 text = subtitle
-                setTextColor(0xFF9A9AA5.toInt())
+                setTextColor(0xFFCAC4D0.toInt())
                 setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
                 includeFontPadding = false
                 setPadding(0, dp(activity, 2), 0, 0)
@@ -407,7 +407,7 @@ object Appearance {
             text = activity.getString(R.string.home_clock_preview)
             typeface = typefaceFor(activity, index)
             paint.isFakeBoldText = index != 0
-            setTextColor(if (selected) accent else 0xFF9A9AA5.toInt())
+            setTextColor(if (selected) accent else 0xFFCAC4D0.toInt())
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20f)
             includeFontPadding = false
         })
@@ -415,7 +415,7 @@ object Appearance {
     }
 
     private fun clockStyle(context: Context): Int =
-        prefs(context).getInt(KEY_CLOCK, 0).coerceIn(0, 2)
+        prefs(context).getInt(KEY_CLOCK, 2).coerceIn(0, 2)
 
     /** Keeps any DockView already on screen in sync with a new accent. */
     private fun refreshDocks(activity: Activity) {

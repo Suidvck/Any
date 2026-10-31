@@ -25,6 +25,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -146,7 +147,7 @@ class DockView @JvmOverloads constructor(
             )
             gravity = Gravity.CENTER
             text = letterFor(item)
-            setTextColor(Color.WHITE)
+            setTextColor(if (ColorUtils.calculateLuminance(accent) > 0.5) 0xFF381E72.toInt() else Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -233,7 +234,7 @@ class DockView @JvmOverloads constructor(
         root.addView(
             TextView(context).apply {
                 text = current.label
-                setTextColor(0xFF9A9AA5.toInt())
+                setTextColor(0xFFCAC4D0.toInt())
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 setPadding(0, dp(3), 0, 0)
                 maxLines = 1
@@ -272,7 +273,7 @@ class DockView @JvmOverloads constructor(
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             )
             addView(
-                com.suidvck.any.ui.FaIcons.make(context, "chevron-down", 12f, 0xFF9A9AA5.toInt()),
+                com.suidvck.any.ui.FaIcons.make(context, "chevron-down", 12f, 0xFFCAC4D0.toInt()),
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
@@ -324,7 +325,7 @@ class DockView @JvmOverloads constructor(
 
         val hint = TextView(context).apply {
             text = context.getString(R.string.home_dock_custom_hint)
-            setTextColor(0xFF9A9AA5.toInt())
+            setTextColor(0xFFCAC4D0.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             setPadding(0, dp(10), 0, 0)
         }
@@ -359,7 +360,7 @@ class DockView @JvmOverloads constructor(
         actions.addView(
             TextView(context).apply {
                 text = context.getString(R.string.home_cancel)
-                setTextColor(0xFF9A9AA5.toInt())
+                setTextColor(0xFFCAC4D0.toInt())
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 gravity = Gravity.CENTER
                 setPadding(dp(18), dp(13), dp(18), dp(13))
@@ -378,7 +379,7 @@ class DockView @JvmOverloads constructor(
         actions.addView(
             TextView(context).apply {
                 text = context.getString(R.string.home_save)
-                setTextColor(Color.WHITE)
+                setTextColor(if (ColorUtils.calculateLuminance(accent) > 0.5) 0xFF381E72.toInt() else Color.WHITE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 gravity = Gravity.CENTER
@@ -467,19 +468,19 @@ class DockView @JvmOverloads constructor(
 
     private fun sectionLabel(resId: Int): TextView = TextView(context).apply {
         text = context.getString(resId)
-        setTextColor(0xFF9A9AA5.toInt())
+        setTextColor(0xFFCAC4D0.toInt())
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
         setPadding(0, dp(16), 0, 0)
     }
 
     private fun fieldBackground(): GradientDrawable = GradientDrawable().apply {
         cornerRadius = dp(14).toFloat()
-        setColor(0xFF23232B.toInt())
+        setColor(0xFF211F26.toInt())
     }
 
     private fun fieldInput(inputType: Int): EditText = EditText(context).apply {
         setTextColor(Color.WHITE)
-        setHintTextColor(0xFF9A9AA5.toInt())
+        setHintTextColor(0xFFCAC4D0.toInt())
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
         setPadding(dp(14), dp(12), dp(14), dp(12))
         background = fieldBackground()

@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark alert dialog used by LibrarySheet (keeps MaterialAlertDialog rounded shape). -->
+    <!-- Alert dialogs in the shared Material You palette. -->
     <style name="LibraryDialogTheme" parent="Theme.MaterialComponents.Dialog.Alert">
-        <item name="colorPrimary">#5F6CF5</item>
-        <item name="colorPrimaryVariant">#5F6CF5</item>
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorPrimaryVariant">@color/brand</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#5F6CF5</item>
-        <item name="colorSurface">#23232B</item>
-        <item name="colorOnSurface">#FFFFFF</item>
-        <item name="colorOnSurfaceVariant">#9A9AA5</item>
-        <item name="android:colorBackground">#23232B</item>
-        <item name="android:colorBackgroundFloating">#23232B</item>
-        <item name="colorControlActivated">#5F6CF5</item>
-        <item name="colorAccent">#5F6CF5</item>
-        <item name="android:textColorPrimary">#FFFFFF</item>
-        <item name="android:textColorSecondary">#9A9AA5</item>
-        <item name="android:textColorHint">#9A9AA5</item>
+        <item name="colorSecondary">@color/clock_color</item>
+        <item name="colorSurface">@color/card_bg</item>
+        <item name="colorOnSurface">@color/body_text</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
+        <item name="android:colorBackground">@color/home_bg</item>
+        <item name="android:colorBackgroundFloating">@color/card_bg</item>
+        <item name="colorControlActivated">@color/brand</item>
+        <item name="colorAccent">@color/brand</item>
+        <item name="android:textColorPrimary">@color/body_text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:textColorHint">@color/muted</item>
     </style>
 </resources>

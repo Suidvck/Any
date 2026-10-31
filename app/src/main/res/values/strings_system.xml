@@ -24,6 +24,9 @@
     <string name="system_menu_automations_title">ตั้งเวลาอัตโนมัติ</string>
     <string name="system_menu_automations_sub">เปิดลิงก์หรือสั่งแชทตามเวลา</string>
 
+    <string name="system_menu_ai_title">ตั้งค่า AI</string>
+    <string name="system_menu_ai_sub">ผู้ให้บริการ โมเดล และ API key</string>
+
     <string name="system_menu_appearance_title">รูปลักษณ์</string>
     <string name="system_menu_appearance_sub">สีหลักและรูปแบบนาฬิกา</string>
 
