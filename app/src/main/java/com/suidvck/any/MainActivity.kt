@@ -77,11 +77,10 @@ import androidx.webkit.WebViewFeature
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.suidvck.any.features.ai.AiMessage
-import com.suidvck.any.features.ai.MiniAppPlan
-import com.suidvck.any.features.ai.MiniAppPlanValidator
-import com.suidvck.any.features.ai.ApprovedMiniAppPlan
-import com.suidvck.any.features.ai.MiniAppApprovalGate
 import com.suidvck.any.features.ai.AiPrompts
+import com.suidvck.any.features.ai.MiniAppReviewFlow
+import com.suidvck.any.features.ai.ModelPickerDialog
+import com.suidvck.any.features.ai.SettingsDialog
 import com.suidvck.any.features.ai.WebSearch
 import com.suidvck.any.features.browser.BrowserMenuSheet
 import com.suidvck.any.features.browser.FindBar
@@ -153,13 +152,35 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPlayPause: ImageButton
 
     private var sheetOpen = false
+    private var imeVisible = false
     private var greeted = false
     private var generating = false
     private val history = mutableListOf<Pair<String, String>>() // role to content, oldest first
 
     // Extras (library, chats, browser tabs, voice, attachments).
     private lateinit var miniApps: MiniAppStore
-    private val miniAppApprovalGate = MiniAppApprovalGate()
+    private val miniAppReviewFlow by lazy {
+        MiniAppReviewFlow(
+            activity = this,
+            extractHtml = { response ->
+                val match = codeBlockRegex.find(response)
+                match?.takeIf { isHtmlBlock(it) }?.groupValues?.get(2)?.trim()
+                    ?: response.trim().takeIf {
+                        it.startsWith("<!DOCTYPE", ignoreCase = true) ||
+                            it.startsWith("<html", ignoreCase = true)
+                    }
+            },
+            onMessage = { message -> addMessage(you = false, text = message) },
+            onBusyChanged = { busy ->
+                generating = busy
+                sendButton.isEnabled = !busy
+                sendButton.alpha = if (busy) 0.5f else 1f
+            },
+            onGenerated = { html, editingId ->
+                handleReply("สร้างแอพตามแผนที่อนุมัติแล้ว\n\n```html\n$html\n```", editingId, approvedMiniApp = true)
+            }
+        )
+    }
     private lateinit var chatStore: ChatStore
     private lateinit var browserTabs: TabStore
     private lateinit var browserHistory: HistoryStore
@@ -219,6 +240,13 @@ class MainActivity : AppCompatActivity() {
 
     private val ui = Handler(Looper.getMainLooper())
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.US)
+    private val showChatImeRunnable = Runnable {
+        if (sheetOpen && input.hasFocus() && root.isAttachedToWindow) {
+            WindowInsetsControllerCompat(window, root).show(WindowInsetsCompat.Type.ime())
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
 
     /** True only for debug builds; QA-only intent hooks must never run in a release build. */
     private val isDebuggable: Boolean by lazy {
@@ -244,9 +272,12 @@ class MainActivity : AppCompatActivity() {
     private val codeBlockRegex = Regex("```(html-overlay|html)?[ \\t]*\\r?\\n([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
     private val openUrlRegex = Regex("OPEN_URL:\\s*(https?://\\S+)")
 
+    private val providers = SettingsDialog.DEFAULT_PROVIDERS
+
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
-            if (findBar?.isOpen() == true) findBar?.close()
+            if (isImeVisible()) hideChatKeyboard(clearFocus = false)
+            else if (findBar?.isOpen() == true) findBar?.close()
             else if (customView != null) exitVideoFullscreen()
             else if (sheetOpen) closeSheet()
             else if (overlayPanel?.isVisible == true) hideOverlay()
@@ -254,15 +285,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private data class Provider(val name: String, val base: String, val model: String)
 
-    private val providers = listOf(
-        Provider("Gemini (ฟรี)", AiClient.DEFAULT_BASE, AiClient.DEFAULT_MODEL),
-        Provider("OpenAI", "https://api.openai.com/v1/", "gpt-4o-mini"),
-        Provider("OpenRouter", "https://openrouter.ai/api/v1/", "google/gemini-2.5-flash"),
-        Provider("Groq", "https://api.groq.com/openai/v1/", "llama-3.3-70b-versatile"),
-        Provider("Custom", "", "")
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -343,6 +366,7 @@ class MainActivity : AppCompatActivity() {
         scrim.setOnClickListener { closeSheet() }
         sendButton.setOnClickListener { sendMessage() }
         composeBox.setOnClickListener { openSheet() }
+        input.setOnClickListener { requestChatKeyboard() }
         btnAttach.setOnClickListener { AttachmentPicker.launch(this) }
         btnMore.setOnClickListener { showExtras() }
         btnYt.setOnClickListener { showPreview(url = "https://www.youtube.com") }
@@ -386,6 +410,7 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             mainContent.setPadding(0, bars.top, 0, bars.bottom)
             previewContainer.updatePadding(bottom = bars.bottom)
             val bottom = if (ime.bottom > bars.bottom) ime.bottom else bars.bottom
@@ -572,7 +597,7 @@ class MainActivity : AppCompatActivity() {
             intent.getBooleanExtra("reopenLast", false) -> root.post { reopenLastPage() }
             intent.getBooleanExtra("openSettings", false) -> root.post { showSettings() }
             !modelSearchBase.isNullOrBlank() -> root.post {
-                showModelPicker(modelSearchBase, intent.getStringExtra("modelSearchKey").orEmpty()) {}
+                ModelPickerDialog(this).show(modelSearchBase, intent.getStringExtra("modelSearchKey").orEmpty()) {}
             }
             intent.getBooleanExtra("openChat", false) -> root.post { openSheet() }
             intent.getBooleanExtra("voice", false) -> root.post { startVoiceCommand() }
@@ -1176,6 +1201,8 @@ class MainActivity : AppCompatActivity() {
     private fun closeSheet() {
         if (!sheetOpen) return
         sheetOpen = false
+        input.removeCallbacks(showChatImeRunnable)
+        hideChatKeyboard(clearFocus = true)
         stopVoiceListening()
         clearVoiceBubble()
         handsFree = false
@@ -1191,8 +1218,27 @@ class MainActivity : AppCompatActivity() {
         scrim.animate().alpha(0f).setDuration(200)
             .withEndAction { scrim.isVisible = false }
             .start()
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(input.windowToken, 0)
+    }
+
+    private fun requestChatKeyboard() {
+        if (!sheetOpen) return
+        input.requestFocus()
+        input.removeCallbacks(showChatImeRunnable)
+        // Wait for the sheet to settle and the EditText to receive focus before showing IME.
+        input.postDelayed(showChatImeRunnable, 90L)
+    }
+
+    private fun hideChatKeyboard(clearFocus: Boolean) {
+        input.removeCallbacks(showChatImeRunnable)
+        WindowInsetsControllerCompat(window, root).hide(WindowInsetsCompat.Type.ime())
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(input.windowToken, InputMethodManager.HIDE_NOT_ALWAYS)
+        if (clearFocus) input.clearFocus()
+    }
+
+    private fun isImeVisible(): Boolean {
+        val current = ViewCompat.getRootWindowInsets(root)?.isVisible(WindowInsetsCompat.Type.ime())
+        return current == true || imeVisible
     }
 
     // ---------- Voice input (long-press the floating chat ring) ----------
@@ -1370,7 +1416,7 @@ class MainActivity : AppCompatActivity() {
         val thinking = addMessage(you = false, text = getString(R.string.thinking))
         val thinkingText = (thinking as ViewGroup).getChildAt(0) as TextView
         history += "user" to promptText
-        val maxContext = prefs.getInt("maxContext", DEFAULT_MAX_CONTEXT).coerceIn(2, 200)
+        val maxContext = prefs.getInt("maxContext", SettingsDialog.DEFAULT_MAX_CONTEXT).coerceIn(2, 200)
         while (history.size > maxContext) history.removeAt(0)
 
         val aiHistory = if (editApp != null) {
@@ -1472,27 +1518,18 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        if (isMiniAppRequest(promptText, editingId != null)) {
-            AiClient.streamChat(
-                baseUrl = base, apiKey = key, model = model,
-                systemExtra = AiPrompts.miniAppPlanning(
-                    promptText,
-                    editApp?.let { "${it.name}: ${it.html.take(1000)}" }
-                ),
-                history = listOf(AiMessage("user", promptText, image)),
-                webSearch = false,
-                onDelta = { if (!isFinishing) thinkingText.text = "กำลังวิเคราะห์แผนและความเสี่ยง…" },
-                onDone = { full ->
-                    if (isFinishing) return@streamChat
-                    finishRequest()
-                    val plan = MiniAppPlan.parse(full)
-                    if (plan == null) {
-                        addMessage(you = false, text = "อ่านแผนจาก AI ไม่ได้ จึงยังไม่ได้เริ่มสร้างแอพ กรุณาลองใหม่")
-                    } else {
-                        showMiniAppPlan(plan, promptText, editingId, editApp?.html)
-                    }
-                },
-                onError = { e -> if (!isFinishing) failRequest(e.message ?: "unknown error") }
+        if (MiniAppReviewFlow.shouldReviewRequest(promptText, editingId != null)) {
+            miniAppReviewFlow.start(
+                baseUrl = base,
+                apiKey = key,
+                model = model,
+                prompt = promptText,
+                image = image,
+                editingId = editingId,
+                oldHtml = editApp?.html,
+                onProgress = { progress -> if (!isFinishing) thinkingText.text = progress },
+                onFinished = { finishRequest() },
+                onError = { error -> if (!isFinishing) failRequest(error) }
             )
             return
         }
@@ -1501,177 +1538,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Creation and edits are staged; only an explicit Android button tap starts generation. */
-    private fun isMiniAppRequest(prompt: String, editing: Boolean): Boolean {
-        if (editing) return true
-        val p = prompt.lowercase(Locale.ROOT)
-        val action = listOf(
-            "สร้าง", "ทำ", "เขียน", "อยากได้", "ต้องการ", "ขอ", "ช่วย", "build", "create",
-            "make", "generate", "develop", "code", "design", "i want", "i need", "please"
-        )
-            .any { p.contains(it) }
-        val target = listOf(
-            "แอพ", "แอป", "app", "application", "mini-app", "mini app", "web app", "website",
-            "เว็บแอพ", "เกม", "game", "tool", "calculator", "เครื่องคิดเลข", "dashboard",
-            "todo", "ตารางงาน", "note", "notes", "timer", "stopwatch", "chatbot", "planner",
-            "tracker", "form", "assistant"
-        )
-            .any { p.contains(it) }
-        return action && target
-    }
-
-    private fun showMiniAppPlan(
-        plan: MiniAppPlan,
-        prompt: String,
-        editingId: String?,
-        oldHtml: String?,
-        onApprove: (ApprovedMiniAppPlan) -> Unit = { approved ->
-            generateApprovedMiniApp(approved, prompt, editingId, oldHtml)
-        }
-    ) {
-        if (isFinishing) return
-        miniAppApprovalGate.present(plan)
-        val content = ScrollView(this).apply {
-            setPadding(dp(22), dp(14), dp(22), dp(8))
-            addView(TextView(this@MainActivity).apply {
-                text = plan.toReviewText()
-                textSize = 15f
-                setTextColor(0xFFEAEAF0.toInt())
-            })
-        }
-        val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-            .setTitle("ตรวจสอบแผนก่อนสร้าง")
-            .setView(content)
-            .setPositiveButton("Approve & Generate", null)
-            .setNeutralButton("Modify Plan", null)
-            .setNegativeButton("Cancel") { _, _ ->
-                miniAppApprovalGate.cancel()
-                addMessage(you = false, text = "ยกเลิกการสร้างแล้ว ยังไม่มีการสร้างหรือบันทึก Mini-App")
-            }
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val grant = miniAppApprovalGate.approve(plan) ?: return@setOnClickListener
-                dialog.dismiss()
-                onApprove(grant)
-            }
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                dialog.dismiss()
-                miniAppApprovalGate.cancel()
-                val edit = EditText(this).apply {
-                    hint = "เช่น ใช้ Vanilla JS เท่านั้น และไม่เรียก API ภายนอก"
-                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                    minLines = 3
-                    setTextColor(0xFFEAEAF0.toInt())
-                }
-                MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-                    .setTitle("ขอปรับแผน")
-                    .setMessage("อธิบายการเปลี่ยนแปลงที่ต้องการ แผนใหม่จะต้องได้รับอนุมัติก่อนสร้าง")
-                    .setView(edit)
-                    .setPositiveButton("ส่งให้ปรับแผน") { _, _ ->
-                        val change = edit.text.toString().trim()
-                        if (change.isNotEmpty()) requestRevisedMiniAppPlan(plan, prompt, change, editingId, oldHtml)
-                    }
-                    .setNegativeButton("กลับ", null)
-                    .show()
-            }
-        }
-        dialog.show()
-    }
-
-    private fun requestRevisedMiniAppPlan(
-        oldPlan: MiniAppPlan, prompt: String, change: String, editingId: String?, oldHtml: String?
-    ) {
-        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
-        val model = prefs.getString("model", AiClient.DEFAULT_MODEL).orEmpty().ifBlank { AiClient.DEFAULT_MODEL }
-        val key = prefs.getString("key", "").orEmpty()
-        if (key.isBlank()) return
-        generating = true
-        sendButton.isEnabled = false
-        var cancelled = false
-        val progress = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-            .setTitle("กำลังปรับแผน")
-            .setMessage("ยังไม่มีการสร้างโค้ด")
-            .setNegativeButton("Cancel") { _, _ -> cancelled = true; generating = false; sendButton.isEnabled = true }
-            .create()
-        progress.show()
-        progress.setOnCancelListener { cancelled = true; generating = false; sendButton.isEnabled = true }
-        AiClient.streamChat(
-            baseUrl = base, apiKey = key, model = model,
-            systemExtra = AiPrompts.miniAppPlanning("$prompt\n\nUser requested plan change: $change\n\nPrevious proposal:\n${oldPlan.toReviewText()}"),
-            history = listOf(AiMessage("user", "$prompt\n\nRevise the previous plan: $change")),
-            webSearch = false,
-            onDelta = {},
-            onDone = { result ->
-                progress.dismiss(); generating = false; sendButton.isEnabled = true
-                if (cancelled || isFinishing) return@streamChat
-                val revised = MiniAppPlan.parse(result)
-                if (revised == null) addMessage(you = false, text = "อ่านแผนที่ปรับแล้วไม่ได้ จึงยังไม่ได้สร้างแอพ")
-                else showMiniAppPlan(revised, prompt, editingId, oldHtml)
-            },
-            onError = { error ->
-                progress.dismiss(); generating = false; sendButton.isEnabled = true
-                if (!cancelled && !isFinishing) addMessage(you = false, text = getString(R.string.error_prefix) + (error.message ?: "unknown error"))
-            }
-        )
-    }
-
-    private fun generateApprovedMiniApp(
-        grant: ApprovedMiniAppPlan, prompt: String, editingId: String?, oldHtml: String?
-    ) {
-        val plan = miniAppApprovalGate.consume(grant) ?: return
-        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val base = prefs.getString("base", AiClient.DEFAULT_BASE).orEmpty().ifBlank { AiClient.DEFAULT_BASE }
-        val model = prefs.getString("model", AiClient.DEFAULT_MODEL).orEmpty().ifBlank { AiClient.DEFAULT_MODEL }
-        val key = prefs.getString("key", "").orEmpty()
-        if (key.isBlank()) return
-        generating = true
-        sendButton.isEnabled = false
-        var cancelled = false
-        val progress = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-            .setTitle("กำลังสร้าง Mini-App")
-            .setMessage("ตรวจสอบการใช้ทรัพยากรตามแผนที่อนุมัติแล้ว")
-            .setNegativeButton("Cancel") { _, _ -> cancelled = true; generating = false; sendButton.isEnabled = true }
-            .create()
-        progress.show()
-        progress.setOnCancelListener { cancelled = true; generating = false; sendButton.isEnabled = true }
-        AiClient.streamChat(
-            baseUrl = base, apiKey = key, model = model,
-            systemExtra = AiPrompts.miniAppGeneration(plan, prompt, oldHtml),
-            history = listOf(AiMessage("user", prompt)),
-            webSearch = false,
-            onDelta = {},
-            onDone = { result ->
-                progress.dismiss(); generating = false; sendButton.isEnabled = true
-                if (cancelled || isFinishing) return@streamChat
-                val match = codeBlockRegex.find(result)
-                val html = match?.takeIf { isHtmlBlock(it) }?.groupValues?.get(2)?.trim()
-                    ?: result.trim().takeIf { it.startsWith("<!DOCTYPE", true) || it.startsWith("<html", true) }
-                if (html.isNullOrBlank()) {
-                    addMessage(you = false, text = "AI ไม่ได้ส่ง HTML ตามแผน จึงไม่ได้บันทึกหรือเปิดแอพ")
-                    return@streamChat
-                }
-                val extras = MiniAppPlanValidator.unapprovedOrigins(html, plan)
-                if (extras.isNotEmpty()) {
-                    val revised = plan.copy(
-                        externalServices = plan.externalServices + extras.map { "พบในผลสร้าง: $it" },
-                        risks = plan.risks + "โค้ดที่ได้มี origin ซึ่งไม่มีในแผนเดิม: ${extras.joinToString()}. ต้องอนุมัติแผนใหม่"
-                    )
-                    addMessage(you = false, text = "พบ URL ภายนอกที่ไม่ได้อยู่ในแผนเดิม โค้ดยังไม่ถูกบันทึกหรือแสดง")
-                    showMiniAppPlan(revised, prompt, editingId, oldHtml) { newlyApproved ->
-                        generateApprovedMiniApp(newlyApproved, prompt, editingId, oldHtml)
-                    }
-                } else {
-                    handleReply("สร้างแอพตามแผนที่อนุมัติแล้ว\n\n```html\n$html\n```", editingId, approvedMiniApp = true)
-                }
-            },
-            onError = { error ->
-                progress.dismiss(); generating = false; sendButton.isEnabled = true
-                if (!cancelled && !isFinishing) addMessage(you = false, text = getString(R.string.error_prefix) + (error.message ?: "unknown error"))
-            }
-        )
-    }
-
     /** True for a fence that should be treated as a mini-app document. */
     private fun isHtmlBlock(match: MatchResult): Boolean {
         when (match.groupValues[1].lowercase()) {
@@ -2775,380 +2641,17 @@ class MainActivity : AppCompatActivity() {
     // ---------- Settings dialog ----------
 
     private fun showSettings() {
-        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val savedProvider = prefs.getInt("provider", 0).coerceIn(0, providers.size - 1)
-        val pad = dp(20)
-
-        fun lp() = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10) }
-
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, dp(6), pad, dp(4))
-            minimumWidth = dp(280)
-        }
-
-        val providerSpinner = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            isClickable = true
-            isFocusable = true
-            contentDescription = getString(R.string.provider)
-        }
-        val providerValue = TextView(this).apply {
-            text = providers[savedProvider].name
-            setTextColor(getColor(R.color.white))
-            textSize = 14f
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        providerSpinner.addView(
-            providerValue,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        )
-        providerSpinner.addView(
-            FaIcons.make(this, "chevron-down", 12f, getColor(R.color.icon_muted)),
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = dp(8) }
-        )
-
-        val baseInput = EditText(this).apply {
-            hint = getString(R.string.base_url)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setSingleLine()
-            setText(prefs.getString("base", AiClient.DEFAULT_BASE))
-            setTextColor(getColor(R.color.white))
-            setHintTextColor(getColor(R.color.input_hint))
-            textSize = 14f
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-        }
-        val modelInput = EditText(this).apply {
-            hint = getString(R.string.model)
-            setSingleLine()
-            setText(prefs.getString("model", AiClient.DEFAULT_MODEL))
-            setTextColor(getColor(R.color.white))
-            setHintTextColor(getColor(R.color.input_hint))
-            textSize = 14f
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-        }
-        val keyInput = EditText(this).apply {
-            hint = getString(R.string.api_key)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setSingleLine()
-            setText(prefs.getString("key", ""))
-            setTextColor(getColor(R.color.white))
-            setHintTextColor(getColor(R.color.input_hint))
-            textSize = 14f
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-        }
-        val maxCtxInput = EditText(this).apply {
-            hint = getString(R.string.max_context)
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setSingleLine()
-            setText(prefs.getInt("maxContext", DEFAULT_MAX_CONTEXT).toString())
-            setTextColor(getColor(R.color.white))
-            setHintTextColor(getColor(R.color.input_hint))
-            textSize = 14f
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-        }
-        val adBlockCheck = CheckBox(this).apply {
-            setText(R.string.adblock_label)
-            isChecked = prefs.getBoolean("adblock", true)
-            setTextColor(getColor(R.color.white))
-            buttonTintList = android.content.res.ColorStateList.valueOf(
-                getColor(R.color.brand)
-            )
-        }
-        val webSearchCheck = CheckBox(this).apply {
-            setText(R.string.web_search_label)
-            isChecked = prefs.getBoolean("web_search", true)
-            setTextColor(getColor(R.color.white))
-            buttonTintList = android.content.res.ColorStateList.valueOf(
-                getColor(R.color.brand)
-            )
-        }
-
-        val permissionSummary = TextView(this).apply {
-            textSize = 11f
-            setTextColor(getColor(R.color.icon_muted))
-            text = getString(
-                R.string.miniapp_permissions_summary,
-                MiniAppPermissions.load(this@MainActivity).enabledCount,
-                MiniAppPermissions.TOGGLE_COUNT
-            )
-        }
-        val permissionsRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            isClickable = true
-            isFocusable = true
-            contentDescription = getString(R.string.miniapp_permissions)
-            setOnClickListener {
-                MiniAppPermissionsSheet.show(this@MainActivity) {
-                    if (miniAppActive) applyMiniAppWebSettings()
-                    permissionSummary.text = getString(
-                        R.string.miniapp_permissions_summary,
-                        MiniAppPermissions.load(this@MainActivity).enabledCount,
-                        MiniAppPermissions.TOGGLE_COUNT
-                    )
-                }
-            }
-        }
-        val permissionColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        permissionColumn.addView(TextView(this).apply {
-            text = getString(R.string.miniapp_permissions)
-            setTextColor(getColor(R.color.white))
-            textSize = 14f
-        })
-        permissionColumn.addView(permissionSummary)
-        permissionsRow.addView(
-            permissionColumn,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        )
-        permissionsRow.addView(
-            FaIcons.make(this, "chevron-right", 12f, getColor(R.color.icon_muted))
-        )
-
-        var lastProvider = savedProvider
-        providerSpinner.setOnClickListener {
-            ChoiceSheet.show(
-                this,
-                getString(R.string.provider),
-                null,
-                providers.map { it.name },
-                lastProvider
-            ) { position ->
-                if (position != lastProvider) {
-                    lastProvider = position
-                    providerValue.text = providers[position].name
-                    val p = providers[position]
-                    if (p.base.isNotEmpty()) {
-                        baseInput.setText(p.base)
-                        modelInput.setText(p.model)
-                    }
-                }
-            }
-        }
-
-        col.addView(TextView(this).apply {
-            setText(R.string.provider)
-            textSize = 12f
-            setTextColor(getColor(R.color.icon_muted))
-        })
-        val modelRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        modelRow.addView(
-            modelInput,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        )
-        modelRow.addView(
-            TextView(this).apply {
-                setText(R.string.search)
-                setTextColor(getColor(R.color.white))
-                textSize = 14f
-                gravity = Gravity.CENTER
-                setPadding(dp(16), dp(12), dp(16), dp(12))
-                background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(0x33FFFFFF),
-                    roundedBg(0xFF2C2C35.toInt(), dp(14).toFloat()),
-                    null
-                )
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    showModelPicker(
-                        baseInput.text.toString().trim(),
-                        keyInput.text.toString().trim()
-                    ) { picked -> modelInput.setText(picked) }
-                }
-            },
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = dp(10) }
-        )
-
-        col.addView(providerSpinner)
-        col.addView(baseInput, lp())
-        col.addView(modelRow, lp())
-        col.addView(keyInput, lp())
-        col.addView(TextView(this).apply {
-            setText(R.string.max_context)
-            textSize = 12f
-            setTextColor(getColor(R.color.icon_muted))
-        }, lp())
-        col.addView(maxCtxInput)
-        col.addView(adBlockCheck, lp())
-        col.addView(webSearchCheck, lp())
-        col.addView(permissionsRow, lp())
-
-        val settingsDialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-            .setTitle(R.string.settings)
-            .setView(col)
-            .setPositiveButton(R.string.save) { _, _ ->
-                prefs.edit()
-                    .putInt("provider", lastProvider)
-                    .putString("base", baseInput.text.toString().trim().ifBlank { AiClient.DEFAULT_BASE })
-                    .putString("model", modelInput.text.toString().trim().ifBlank { AiClient.DEFAULT_MODEL })
-                    .putString("key", keyInput.text.toString().trim())
-                    .putInt(
-                        "maxContext",
-                        (maxCtxInput.text.toString().toIntOrNull() ?: DEFAULT_MAX_CONTEXT).coerceIn(2, 200)
-                    )
-                    .putBoolean("adblock", adBlockCheck.isChecked)
-                    .putBoolean("web_search", webSearchCheck.isChecked)
-                    .apply()
-                adBlockEnabled = adBlockCheck.isChecked
+        SettingsDialog(this).show(
+            providers = providers,
+            isMiniAppActive = { miniAppActive },
+            onPermissionsChanged = { applyMiniAppWebSettings() },
+            onOpenPermissions = { onChanged -> MiniAppPermissionsSheet.show(this, onChanged) },
+            onSaved = { enabled ->
+                adBlockEnabled = enabled
                 addMessage(you = false, text = getString(R.string.saved))
             }
-            .setNegativeButton(R.string.cancel, null)
-            .create()
-        settingsDialog.show()
-        AnyChrome.dialog(settingsDialog)
+        )
     }
-
-    private fun showModelPicker(baseUrl: String, apiKey: String, onPick: (String) -> Unit) {
-        if (baseUrl.isBlank()) {
-            val dialog = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-                .setTitle(R.string.model_search)
-                .setMessage(R.string.models_need_base)
-                .setPositiveButton(android.R.string.ok, null)
-                .create()
-            dialog.show()
-            AnyChrome.dialog(dialog)
-            return
-        }
-
-        val loading = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-            .setMessage(R.string.models_loading)
-            .setCancelable(false)
-            .create()
-        loading.show()
-        AnyChrome.dialog(loading)
-
-        AiClient.listModels(baseUrl, apiKey) { result ->
-            runOnUiThread {
-                if (isFinishing) return@runOnUiThread
-                loading.dismiss()
-                result.onSuccess { models ->
-                    if (models.isEmpty()) {
-                        val empty = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-                            .setTitle(R.string.model_search)
-                            .setMessage(R.string.models_empty)
-                            .setPositiveButton(android.R.string.ok, null)
-                            .create()
-                        empty.show()
-                        AnyChrome.dialog(empty)
-                        return@onSuccess
-                    }
-
-                    val filter = EditText(this).apply {
-                        hint = getString(R.string.models_filter_hint)
-                        setSingleLine()
-                        inputType = InputType.TYPE_CLASS_TEXT
-                        setTextColor(getColor(R.color.white))
-                        setHintTextColor(getColor(R.color.input_hint))
-                        textSize = 14f
-                        setPadding(dp(14), dp(12), dp(14), dp(12))
-                        background = roundedBg(0xFF211F26.toInt(), dp(14).toFloat())
-                    }
-                    val list = ListView(this).apply {
-                        dividerHeight = 0
-                        setSelector(android.R.color.transparent)
-                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                        overScrollMode = View.OVER_SCROLL_NEVER
-                        isVerticalScrollBarEnabled = false
-                    }
-                    val adapter = object : ArrayAdapter<String>(
-                        this,
-                        android.R.layout.simple_list_item_1,
-                        ArrayList(models)
-                    ) {
-                        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                            val view = super.getView(position, convertView, parent)
-                            (view as? TextView)?.apply {
-                                setTextColor(getColor(R.color.white))
-                                textSize = 14f
-                                setPadding(dp(14), dp(13), dp(14), dp(13))
-                                maxLines = 1
-                                ellipsize = android.text.TextUtils.TruncateAt.END
-                            }
-                            return view
-                        }
-                    }
-                    list.adapter = adapter
-                    list.layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(320)
-                    )
-
-                    lateinit var picker: AlertDialog
-                    list.setOnItemClickListener { _, _, position, _ ->
-                        val picked = list.getItemAtPosition(position) as? String
-                        if (picked != null) {
-                            onPick(picked)
-                            picker.dismiss()
-                        }
-                    }
-                    filter.doAfterTextChanged { text ->
-                        val q = text?.toString()?.trim().orEmpty()
-                        adapter.clear()
-                        if (q.isEmpty()) {
-                            adapter.addAll(models)
-                        } else {
-                            adapter.addAll(models.filter { m -> m.contains(q, ignoreCase = true) })
-                        }
-                        adapter.notifyDataSetChanged()
-                    }
-
-                    val col = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL
-                        setPadding(dp(16), dp(8), dp(16), 0)
-                    }
-                    col.addView(filter)
-                    col.addView(
-                        list,
-                        LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            dp(320)
-                        ).apply { topMargin = dp(10) }
-                    )
-
-                    picker = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-                        .setTitle(getString(R.string.model_search) + " (" + models.size + ")")
-                        .setView(col)
-                        .setNegativeButton(R.string.cancel, null)
-                        .create()
-                    picker.show()
-                    AnyChrome.dialog(picker)
-                }.onFailure { e ->
-                    val error = MaterialAlertDialogBuilder(this, R.style.AnyDialogTheme)
-                        .setTitle(R.string.model_search)
-                        .setMessage(getString(R.string.error_prefix) + (e.message ?: "unknown error"))
-                        .setPositiveButton(android.R.string.ok, null)
-                        .create()
-                    error.show()
-                    AnyChrome.dialog(error)
-                }
-            }
-        }
-    }
-
-    // ---------- Message bubbles ----------
 
     private fun addMessage(you: Boolean, text: String): View {
         val item = LinearLayout(this).apply {
@@ -3184,7 +2687,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val HOST_MINIAPP = "miniapp"
-        private const val DEFAULT_MAX_CONTEXT = 40
         private const val REQUEST_WEB_MEDIA = 7002
         private const val REQUEST_WEB_LOCATION = 7003
 
