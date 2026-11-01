@@ -46,6 +46,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.URLUtil
+import android.webkit.ValueCallback
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.EditText
@@ -206,6 +207,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingWebPermission: PermissionRequest? = null
     private var pendingGeoOrigin: String? = null
     private var pendingGeoCallback: GeolocationPermissions.Callback? = null
+    private var pendingFileUpload: ValueCallback<Array<Uri>>? = null
 
     private data class Task(val host: String, val title: String)
 
@@ -433,6 +435,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_WEB_FILE_CHOOSER) {
+            val callback = pendingFileUpload
+            pendingFileUpload = null
+            val selected = if (resultCode == RESULT_OK) {
+                WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            } else {
+                null
+            }
+            callback?.onReceiveValue(selected)
+            return
+        }
         if (requestCode == AttachmentPicker.REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 val url = AttachmentPicker.read(this, data)
@@ -649,6 +662,8 @@ class MainActivity : AppCompatActivity() {
         stopVideoPolling()
         stopVoiceListening()
         if (::voiceMode.isInitialized) runCatching { voiceMode.release() }
+        pendingFileUpload?.onReceiveValue(null)
+        pendingFileUpload = null
         if (::chatStore.isInitialized) chatStore.saveAllNow()
 
         // WebView holds a renderer process, JS timers and native callbacks. Without an explicit
@@ -802,7 +817,9 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             // The browser only ever loads http(s) and in-memory mini-app documents. Leaving
             // file:// reachable on API 24-29 lets a page probe the app's private directory.
-            // content:// stays enabled because the file-chooser uses it for uploads.
+            // Selected document-provider URIs are exposed through content:// for uploads.
+            allowContentAccess = true
+            // Never expose the app's private filesystem through file://.
             allowFileAccess = false
         }
         WebView.setWebContentsDebuggingEnabled(isDebuggable)
@@ -875,6 +892,31 @@ class MainActivity : AppCompatActivity() {
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                if (filePathCallback == null || fileChooserParams == null || isFinishing) {
+                    filePathCallback?.onReceiveValue(null)
+                    return true
+                }
+                pendingFileUpload?.onReceiveValue(null)
+                pendingFileUpload = filePathCallback
+                return try {
+                    startActivityForResult(
+                        fileChooserParams.createIntent(),
+                        REQUEST_WEB_FILE_CHOOSER
+                    )
+                    true
+                } catch (error: Throwable) {
+                    Log.w("Any", "Unable to open WebView file chooser", error)
+                    pendingFileUpload = null
+                    filePathCallback.onReceiveValue(null)
+                    true
+                }
+            }
+
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
                 if (title.isNullOrBlank()) return
@@ -2689,6 +2731,7 @@ class MainActivity : AppCompatActivity() {
         private const val HOST_MINIAPP = "miniapp"
         private const val REQUEST_WEB_MEDIA = 7002
         private const val REQUEST_WEB_LOCATION = 7003
+        private const val REQUEST_WEB_FILE_CHOOSER = 7004
 
         /**
          * Largest saved HTML document that may be sent back for an edit. The edit prompt cannot
