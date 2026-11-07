@@ -38,7 +38,7 @@ object TimeSheet {
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
         val accent = runCatching { Appearance.accentColor(activity) }
-            .getOrDefault(0xFF5F6CF5.toInt())
+            .getOrDefault(0xFFAA9AFF.toInt())
         var h = hour.coerceIn(0, 23)
         var m = minute.coerceIn(0, 59)
 

@@ -2,7 +2,10 @@ package com.suidvck.any
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
@@ -26,13 +29,21 @@ class HomeBackdropView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
-        paint.color = blobOne
-        canvas.drawOval(-0.33f * w, -0.26f * h, 0.47f * w, 0.52f * h, paint)
+        // Wide, feathered color fields create a quiet glass-like backdrop without a
+        // continuously animated shader or a WebGL dependency on the home screen.
+        drawGlow(canvas, -0.02f * w, 0.08f * h, 0.66f * w, blobOne)
+        drawGlow(canvas, 0.98f * w, 0.30f * h, 0.58f * w, blobTwo)
+        drawGlow(canvas, 0.20f * w, 0.96f * h, 0.62f * w, blobThree)
+    }
 
-        paint.color = blobTwo
-        canvas.drawCircle(w, 0f, 0.43f * w, paint)
-
-        paint.color = blobThree
-        canvas.drawOval(-0.60f * w, 0.72f * h, 0.50f * w, 1.32f * h, paint)
+    private fun drawGlow(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
+        paint.shader = RadialGradient(
+            x, y, radius,
+            intArrayOf(color, Color.TRANSPARENT),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        canvas.drawCircle(x, y, radius, paint)
+        paint.shader = null
     }
 }

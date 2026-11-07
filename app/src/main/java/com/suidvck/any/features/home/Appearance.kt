@@ -39,12 +39,12 @@ object Appearance {
     const val DEFAULT_ACCENT = "lavender"
 
     val accents: List<Accent> = listOf(
-        Accent("lavender", "ลาเวนเดอร์", 0xFF5F6CF5.toInt()),
-        Accent("mint", "มิ้นต์", 0xFF35B98A.toInt()),
-        Accent("rose", "โรส", 0xFFE2708A.toInt()),
-        Accent("amber", "แอมเบอร์", 0xFFE0A03A.toInt()),
-        Accent("sky", "สกาย", 0xFF4AA3E0.toInt()),
-        Accent("mono", "โมโน", 0xFF8E8E99.toInt())
+        Accent("lavender", "ลาเวนเดอร์", 0xFFAA9AFF.toInt()),
+        Accent("mint", "มิ้นต์", 0xFF67D5AC.toInt()),
+        Accent("rose", "โรส", 0xFFF18EAE.toInt()),
+        Accent("amber", "แอมเบอร์", 0xFFE7B45E.toInt()),
+        Accent("sky", "สกาย", 0xFF74BCEB.toInt()),
+        Accent("mono", "โมโน", 0xFFA4A3B1.toInt())
     )
 
     /** Current accent color (falls back to lavender for unknown keys). */
@@ -232,7 +232,7 @@ object Appearance {
         row.addView(
             TextView(activity).apply {
                 gravity = Gravity.CENTER
-                val tint = if (selected) accent else 0xFF9A9AA5.toInt()
+                val tint = if (selected) accent else ContextCompat.getColor(activity, R.color.system_muted)
                 com.suidvck.any.ui.FaIcons.setIcon(this, icon, 17f, tint)
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -248,7 +248,7 @@ object Appearance {
         textColumn.addView(
             TextView(activity).apply {
                 text = title
-                setTextColor(Color.WHITE)
+                setTextColor(ContextCompat.getColor(activity, R.color.system_text))
                 setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 includeFontPadding = false
@@ -257,7 +257,7 @@ object Appearance {
         textColumn.addView(
             TextView(activity).apply {
                 text = subtitle
-                setTextColor(0xFF9A9AA5.toInt())
+                setTextColor(ContextCompat.getColor(activity, R.color.system_muted))
                 setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
                 includeFontPadding = false
                 setPadding(0, dp(activity, 2), 0, 0)
@@ -276,7 +276,7 @@ object Appearance {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(Color.TRANSPARENT)
-                    setStroke(dp(activity, 2), if (selected) accent else 0x66FFFFFF)
+                    setStroke(dp(activity, 2), if (selected) accent else ContextCompat.getColor(activity, R.color.card_stroke))
                 }
                 if (selected) {
                     addView(
@@ -373,7 +373,7 @@ object Appearance {
                 setColor(Color.TRANSPARENT)
                 setStroke(
                     dp(activity, 2),
-                    if (selected) accent else 0x66FFFFFF
+                    if (selected) accent else ContextCompat.getColor(activity, R.color.card_stroke)
                 )
             }
         }
@@ -395,7 +395,7 @@ object Appearance {
                 1f
             ).apply { marginStart = dp(activity, 12) }
             text = activity.getString(nameRes)
-            setTextColor(Color.WHITE)
+            setTextColor(ContextCompat.getColor(activity, R.color.system_text))
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
         })
 
@@ -407,7 +407,7 @@ object Appearance {
             text = activity.getString(R.string.home_clock_preview)
             typeface = typefaceFor(activity, index)
             paint.isFakeBoldText = index != 0
-            setTextColor(if (selected) accent else 0xFF9A9AA5.toInt())
+            setTextColor(if (selected) accent else ContextCompat.getColor(activity, R.color.system_muted))
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20f)
             includeFontPadding = false
         })
@@ -415,7 +415,7 @@ object Appearance {
     }
 
     private fun clockStyle(context: Context): Int =
-        prefs(context).getInt(KEY_CLOCK, 0).coerceIn(0, 2)
+        prefs(context).getInt(KEY_CLOCK, 2).coerceIn(0, 2)
 
     /** Keeps any DockView already on screen in sync with a new accent. */
     private fun refreshDocks(activity: Activity) {

@@ -45,7 +45,7 @@ object PageAssistant {
     private const val MAX_PAGE_CHARS = 7000
     private const val MAX_CARD_CHARS = 12000
 
-    private val BRAND = 0xFF5F6CF5.toInt()
+    private val BRAND = 0xFFAA9AFF.toInt()
     private val TEXT = 0xFFFFFFFF.toInt()
     private val MUTED = 0xFF9A9AA5.toInt()
 

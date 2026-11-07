@@ -404,7 +404,7 @@ private val LIB_FIELD_BG = 0xFF23232B.toInt()
 private val LIB_TEXT = 0xFFFFFFFF.toInt()
 private val LIB_MUTED = 0xFF9A9AA5.toInt()
 private val LIB_ROSE = 0xFFE2708A.toInt()
-private val LIB_BRAND = 0xFF5F6CF5.toInt()
+private val LIB_BRAND = 0xFFAA9AFF.toInt()
 
 private fun roundedBackground(fill: Int, radiusPx: Float): GradientDrawable =
     GradientDrawable().apply {

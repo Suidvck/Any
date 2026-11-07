@@ -2449,7 +2449,7 @@ class MainActivity : AppCompatActivity() {
         chip.text = if (editMode) FaIcons.labeled(this, "pen", "กำลังแก้แอพนี้ · แตะเพื่อปิด")
         else FaIcons.labeled(this, "pen", "แตะเพื่อแก้แอพนี้ด้วยแชท")
         chip.background = roundedBg(
-            if (editMode) 0xFF5F6CF5.toInt() else 0xFF23232B.toInt(),
+            if (editMode) 0xFFAA9AFF.toInt() else 0xFF23232B.toInt(),
             dp(14).toFloat()
         )
     }

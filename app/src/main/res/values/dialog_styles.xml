@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Dark, rounded dialogs that match the app instead of the stock white Material alert. -->
+    <!-- Rounded dialogs use the same palette as the glass surfaces and sheets. -->
     <style name="AnyDialogTheme" parent="Theme.MaterialComponents.Dialog.Alert">
         <item name="colorPrimary">@color/brand</item>
         <item name="colorPrimaryVariant">@color/brand</item>
@@ -8,14 +8,14 @@
         <item name="colorSecondary">@color/brand</item>
         <item name="colorSecondaryVariant">@color/brand</item>
         <item name="colorOnSecondary">@color/white</item>
-        <item name="colorSurface">#1B1B21</item>
-        <item name="colorOnSurface">@color/white</item>
+        <item name="colorSurface">@color/sheet_bg</item>
+        <item name="colorOnSurface">@color/system_text</item>
         <item name="colorOnSurfaceVariant">@color/icon_muted</item>
-        <item name="android:colorBackground">#17171B</item>
-        <item name="android:colorBackgroundFloating">#1B1B21</item>
+        <item name="android:colorBackground">@color/sheet_bg</item>
+        <item name="android:colorBackgroundFloating">@color/sheet_bg</item>
         <item name="colorControlActivated">@color/brand</item>
         <item name="colorAccent">@color/brand</item>
-        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorPrimary">@color/system_text</item>
         <item name="android:textColorSecondary">@color/icon_muted</item>
         <item name="android:textColorHint">@color/input_hint</item>
         <item name="android:windowBackground">@drawable/any_dialog_bg</item>

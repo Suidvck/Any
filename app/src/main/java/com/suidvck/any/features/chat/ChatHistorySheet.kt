@@ -43,7 +43,7 @@ object ChatHistorySheet {
     private const val COLOR_CARD = 0xFF23232B.toInt()
     private const val COLOR_TEXT = 0xFFFFFFFF.toInt()
     private const val COLOR_MUTED = 0xFF9A9AA5.toInt()
-    private const val COLOR_BRAND = 0xFF5F6CF5.toInt()
+    private const val COLOR_BRAND = 0xFFAA9AFF.toInt()
     private const val COLOR_ROSE = 0xFFE2708A.toInt()
 
     fun show(

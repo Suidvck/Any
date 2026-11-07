@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Light theme widget card -->
-    <color name="widget_bg">#FCFAFE</color>
-    <color name="widget_stroke">#145B2B9E</color>
-    <color name="widget_text">#2E2342</color>
-    <color name="widget_muted">#8A7CA0</color>
-    <color name="widget_chip">#F0EAF9</color>
-    <color name="widget_accent">#5B2B9E</color>
-    <color name="widget_icon">#5B2B9E</color>
+    <color name="widget_bg">#171520</color>
+    <color name="widget_stroke">#45FFFFFF</color>
+    <color name="widget_text">#F5F3FA</color>
+    <color name="widget_muted">#AAA6B8</color>
+    <color name="widget_chip">#292634</color>
+    <color name="widget_accent">#AA9AFF</color>
+    <color name="widget_icon">#AA9AFF</color>
 </resources>

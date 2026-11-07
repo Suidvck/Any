@@ -32,7 +32,7 @@ object ChoiceSheet {
         onPick: (Int) -> Unit
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
-        val accent = runCatching { Appearance.accentColor(activity) }.getOrDefault(0xFF5F6CF5.toInt())
+        val accent = runCatching { Appearance.accentColor(activity) }.getOrDefault(0xFFAA9AFF.toInt())
         val dialog = BottomSheetDialog(activity)
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL

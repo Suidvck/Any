@@ -100,7 +100,7 @@ Grab the latest APK from [**Releases**](https://github.com/Suidvck/Any/releases/
 ````
 
 - The assistant reply is parsed on-device: a fenced `` ```html `` block is rendered in the app WebView; an `` ```html-overlay `` block opens in a draggable floating panel on top of the screen; an `OPEN_URL:` line navigates the browser WebView. The AI is instructed to never mix them.
-- Chat uses any OpenAI-compatible `POST {base}/chat/completions` endpoint with a bearer key, so providers are interchangeable.
+- Chat uses any OpenAI-compatible `POST {base}/chat/completions` endpoint with a bearer key, so providers are interchangeable. Custom endpoints may use `http://` or `https://` (HTTP sends credentials and chat data without transport encryption).
 - The ad blocker works at the WebView layer: requests are checked against a host blocklist before they leave the device, and a document-start script on YouTube prunes ad placements from player API responses and skips ad playback.
 - Mini-apps run sandboxed in a plain WebView: HTML/CSS/JS only, no native Android access. Camera/microphone, location, downloads and external network requests stay denied unless you explicitly enable them in mini-app permissions.
 

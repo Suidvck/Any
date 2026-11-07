@@ -47,7 +47,7 @@ private const val KEY_FORCE_DARK = "force_dark"
 
 private val SHEET_BG = 0xFF17171B.toInt()
 private val CARD_BG = 0xFF23232B.toInt()
-private val BRAND = 0xFF5F6CF5.toInt()
+private val BRAND = 0xFFAA9AFF.toInt()
 private val TEXT_MAIN = 0xFFFFFFFF.toInt()
 private val TEXT_MUTED = 0xFF9A9AA5.toInt()
 private val ROSE = 0xFFE2708A.toInt()

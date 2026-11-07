@@ -25,7 +25,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top"
-                android:layout_marginTop="161dp"
+                android:layout_marginTop="132dp"
                 android:orientation="vertical"
                 android:paddingLeft="22dp"
                 android:paddingRight="22dp">
@@ -40,7 +40,7 @@
                     android:lineSpacingMultiplier="0.8"
                     android:text="00&#10;00"
                     android:textColor="@color/clock_color"
-                    android:textSize="148sp" />
+                    android:textSize="124sp" />
 
                 <LinearLayout
                     android:id="@+id/running_rows"
@@ -209,19 +209,19 @@
 
                     <TextView
                         android:id="@+id/compose_box"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        android:layout_width="156dp"
+                        android:layout_height="48dp"
+                        android:background="@drawable/bg_compose"
                         android:clickable="true"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackgroundBorderless"
-                        android:letterSpacing="0.1"
-                        android:paddingTop="9dp"
-                        android:paddingBottom="9dp"
+                        android:gravity="center"
+                        android:letterSpacing="0.01"
                         android:text="@string/type_something"
-                        android:textAllCaps="true"
+                        android:textAllCaps="false"
                         android:textColor="@color/home_text"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium" />
 
                     <Space
                         android:layout_width="0dp"
@@ -259,9 +259,10 @@
             android:layout_marginBottom="20dp"
             android:contentDescription="@string/open_chat"
             android:src="@drawable/ic_chat"
-            app:backgroundTint="@android:color/transparent"
-            app:elevation="0dp"
-            app:tint="@color/white" />
+            app:backgroundTint="@color/card_bg"
+            app:elevation="6dp"
+            app:rippleColor="@color/card_stroke"
+            app:tint="@color/home_text" />
     </FrameLayout>
 
     <View
